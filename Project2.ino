@@ -44,7 +44,9 @@ enum STATE {
 #define phototransistor_right_2 A13
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
-
+Servo myservo;  // create servo object to control a servo
+int pos = 0;    // variable to store the servo position
+int fanPin = 45;  // the digital output pin connected to the MOSFET's gate
 int sensorPin = A10;            //define the pin that gyro is connected
 int T = 100;                    // T is the time of one loop
 int sensorValue = 0;            // read out value of sensor
@@ -162,15 +164,16 @@ STATE initialising() {
 
 STATE find_closest_fire() {
     //Turn Fan 180 degrees and see if any obvious fire initially. Maybe save the maximum light value?
-    findLight();
+    //float desiredAngle = findLight();
 
     //Spin robot 180 degrees then
 
-    findLight(); //See if this found a better light
+    //findLight(); //See if this found a better light
 
-    turn(); //Turn robot to face the brightest light source
+    turn(180); //Turn robot to face the brightest light source
 
-    return TRAVEL_TO_FIRE;
+    return FIND_CLOSEST_FIRE;
+    //return TRAVEL_TO_FIRE;
 }
 
 STATE travel_to_fire() {
@@ -208,7 +211,7 @@ STATE stopped() {
             counter_lipo_voltage_ok = 0;
             enable_motors();
             SerialCom->println("Lipo OK returning to RUN STATE");
-            return RUNNING;
+            return FIND_CLOSEST_FIRE;
         }
     } else {
         counter_lipo_voltage_ok = 0;
@@ -222,43 +225,44 @@ STATE stopped() {
 ///////CLOSED LOOP CONTROLS
 
 void turn(float angleDesired) {
-    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
-    float radius = 2.6, length = 8.5, width = 9.2;
-    float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
-    float angular_velocity;
-    int count = 0, currentAngle;
-  
-    while (true) {
-        currentAngle = read_gyro_current_angle();
-        angle_error = constrain(angleDesired - currentAngle, -90, 90);
-  
-        if (abs(integral_angle_error) < 10) {
-            integral_angle_error += angle_error;
-        }
-  
-        derivative_angle_error = angle_error - previous_angle_error;
-        angular_velocity = constrain(angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error, -20, 20);
-  
-        float theta_dot_common = (1 / radius) * (angular_velocity * (length + width));
-        float theta_dots[4] = {-theta_dot_common, theta_dot_common, -theta_dot_common, theta_dot_common};
-  
-        left_front_motor.writeMicroseconds(1500 - theta_dots[0]);
-        right_front_motor.writeMicroseconds(1500 + theta_dots[1]);
-        left_rear_motor.writeMicroseconds(1500 - theta_dots[2]);
-        right_rear_motor.writeMicroseconds(1500 + theta_dots[3]);
-  
-        previous_angle_error = angle_error;
-  
-        if (abs(angle_error) < 2) {
-            count++;
-        } else {
-            count = 0;
-        }
-  
-        if (count > 10) {
-            return;
-        }
+float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
+  float radius = 2.6, length = 8.5, width = 9.2;
+  float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
+  float angular_velocity;
+  int count = 0, currentAngle;
+
+  while (true) {
+    delay(100);
+    currentAngle = read_gyro_current_angle();
+    angle_error = constrain(angleDesired - currentAngle, -90, 90);
+
+    if (abs(integral_angle_error) < 10) {
+      integral_angle_error += angle_error;
     }
+
+    derivative_angle_error = angle_error - previous_angle_error;
+    angular_velocity = constrain(angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error, -20, 20);
+
+    float theta_dot_common = (1 / radius) * (angular_velocity * (length + width));
+    float theta_dots[4] = {-theta_dot_common, theta_dot_common, -theta_dot_common, theta_dot_common};
+
+    left_front_motor.writeMicroseconds(1500 - theta_dots[0]);
+    right_front_motor.writeMicroseconds(1500 + theta_dots[1]);
+    left_rear_motor.writeMicroseconds(1500 - theta_dots[2]);
+    right_rear_motor.writeMicroseconds(1500 + theta_dots[3]);
+
+    previous_angle_error = angle_error;
+
+    if (abs(angle_error) < 2) {
+      count++;
+    } else {
+      count = 0;
+    }
+
+    if (count > 10) {
+      return;
+    }
+  }
 }
 
 int findLight(){
@@ -280,7 +284,7 @@ int findLight(){
       delay(20);
     }
     myservo.write(angleDesired);
-    return (angleDesired); //<<<<<<<<<<<<<<<<<----------------------------Where is this angle from? Where is 0 degrees?
+    return (angleDesired-90); //<<<<<<<<<<<<<<<<<----------------------------Where is this angle from? Where is 0 degrees?
 }
 
 
@@ -298,17 +302,8 @@ float ultrasonic() {  //<------------------------------------------------ Ultras
     digitalWrite(trigPin, LOW);
     
     float duration = pulseIn(echoPin, HIGH);
-    
-    // Kalman filter
-    float measurement = duration * 0.034 / 2; // convert duration to distance measurement
-    kalman_gain = error_estimate / (error_estimate + 0.1); // tune the process noise
-    distance_estimate = distance_previous + kalman_gain * (measurement - distance_previous);
-    error_estimate = (1 - kalman_gain) * error_previous + abs(distance_previous - distance_estimate) * 0.1; // tune the measurement noise
-    distance = distance_estimate;
-    distance_previous = distance_estimate;
-    error_previous = error_estimate;
-    
-    return distance;
+    float measurement = duration * 0.034 / 2; // convert duration to distance measurement    
+    return measurement;
 }
 
 float read_gyro_current_angle() {
@@ -362,16 +357,16 @@ float read_IR(uint8_t Sensor) {
     float distance_measurement;
     float sensorMeasurement = analogRead(Sensor) * (5.0 / 1023.0); // Reading sensor value and converting it to voltage
     
-    if(Sensor == sensor_Left_Back){
+    if(Sensor == phototransistor_left_1){
         distance_measurement = 20.204 * pow(sensorMeasurement, -1.93);
     }
-    if(Sensor == sensor_Left_Front){
+    if(Sensor == phototransistor_left_2){
         distance_measurement = 9.1618 * pow(sensorMeasurement, -1.132);
     }
-    if(Sensor == sensor_Right_Back){
+    if(Sensor == phototransistor_right_1){
         distance_measurement = 8.05 * pow(sensorMeasurement, -1.072);
     }
-    if(Sensor == sensor_Right_Front){
+    if(Sensor == phototransistor_right_2){
         distance_measurement = 23.596 * pow(sensorMeasurement, -1.818);
     }
 
