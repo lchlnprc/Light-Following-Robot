@@ -102,6 +102,9 @@ void setup(void) {
     int i;
     float sum = 0;
     pinMode(sensorPin, INPUT);
+    pinMode(fanPin, OUTPUT);
+
+    myservo.attach(21);  // attaches the servo on pin 21 to the servo object
     
     Serial.println("please keep the sensor still for calibration");
     Serial.println("get the gyro zero voltage");
@@ -164,14 +167,15 @@ STATE initialising() {
 
 STATE find_closest_fire() {
     //Turn Fan 180 degrees and see if any obvious fire initially. Maybe save the maximum light value?
-    //float desiredAngle = findLight();
+    int desiredAngle = findLight();
 
     //Spin robot 180 degrees then
 
     //findLight(); //See if this found a better light
 
-    turn(180); //Turn robot to face the brightest light source
+    turn(desiredAngle); //Turn robot to face the brightest light source
 
+    delay (1000);
     return FIND_CLOSEST_FIRE;
     //return TRAVEL_TO_FIRE;
 }
@@ -273,18 +277,19 @@ int findLight(){
     int angle = 0;
 
     while (angle < 180){
-      myservo.write(angle);
+        myservo.write(angle);
 
-      int intaverageRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
-      if (intaverageRead > maximum){
-        maximum = intaverageRead;
-        angleDesired = angle;
-      }
-      angle++;
-      delay(20);
+        int intaverageRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        if (intaverageRead > maximum){
+            maximum = intaverageRead;
+            angleDesired = angle;
+        }
+        Serial.println(intaverageRead);
+        angle++;
+        delay(20);
     }
     myservo.write(angleDesired);
-    return (angleDesired-90); //<<<<<<<<<<<<<<<<<----------------------------Where is this angle from? Where is 0 degrees?
+    return (-(angleDesired-90)); //<<<<<<<<<<<<<<<<<----------------------------Where is this angle from? Where is 0 degrees?
 }
 
 
