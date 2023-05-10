@@ -50,6 +50,8 @@ int fanPin = 45;  // the digital output pin connected to the MOSFET's gate
 int sensorPin = A10;            //define the pin that gyro is connected
 int T = 100;                    // T is the time of one loop
 int sensorValue = 0;            // read out value of sensor
+int averagePhototransistorRead = 0;            //Defining the Global Ultrasonic Reading
+int maxPhototransistorRead = 0;                 //Definining Global Max Ultrasonic
 float gyroSupplyVoltage = 5;    // supply voltage for gyro
 float gyroZeroVoltage = 0;    // the value of voltage when gyro is zero
 float gyroSensitivity = 0.007;  // gyro sensitivity unit is (mv/degree/second) get from datasheet
@@ -166,22 +168,36 @@ STATE initialising() {
 }
 
 STATE find_closest_fire() {
-    //Turn Fan 180 degrees and see if any obvious fire initially. Maybe save the maximum light value?
-    int desiredAngle = findLight();
 
-    //Spin robot 180 degrees then
+    int angle = 0;
+    int desiredAngle = 0;
+    maxPhototransistorRead = 0;
 
-    //findLight(); //See if this found a better light
+    myservo.write(87);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
 
-    turn(desiredAngle); //Turn robot to face the brightest light source
+    while (angle < 360){
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        if (averagePhototransistorRead > maxPhototransistorRead){
+            maxPhototransistorRead = averagePhototransistorRead;
+            desiredAngle = angle;
+        }
+        turn(10);
+        angle+=10;
+    }
 
-    delay (1000);
-    return FIND_CLOSEST_FIRE;
-    //return TRAVEL_TO_FIRE;
+    turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
+
+    averagePhototransistorRead = 0; //Reset Global Phototransistor Values
+    maxPhototransistorRead = 0;
+
+    return TRAVEL_TO_FIRE;
 }
 
 STATE travel_to_fire() {
-    return NULL;
+
+    straight(); //FUNCTION WITH PID CONTROL ON GYRO AND X AXIS BASED ON BRIGHTEST FIRE SOURCE
+
+    return FIND_CLOSEST_FIRE;
 }
 
 STATE avoid_obstacle() {
@@ -269,27 +285,199 @@ float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
   }
 }
 
+void straight() {
+    
+    // Reset the current angle
+    float currentAngleMove=0;  
+    currentAngle=0;
+    
+    // Initialize given trajectories
+    
+    float x_error = 0;
+    float angle_error = 0;
+    
+    float x_velocity = 0;
+    float angular_velocity = 0;
+    
+    float x_k_p = 40;   // Proportional gain given in course book
+    float x_k_i = 0.5;  // Integral gain given in course book
+    float x_k_d = 1.002;   // Derivative gain given in course book
+    
+    float angle_k_p = 4;   // Proportional gain given in course book
+    float angle_k_i = 0.0;  // Integral gain given in course book
+    float angle_k_d = 0.0001;   // Derivative gain given in course book
+    
+    
+    // INITIALISING THE ERRORS
+    
+    float previous_x_error = 0;
+    float previous_angle_error = 0;
+    
+    float integral_x_error = 0;
+    float integral_angle_error = 0;
+    
+    float derivative_x_error = 0;
+    float derivative_angle_error = 0;
+    
+    int count = 0;
+    int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
+    
+    
+    float radius = 2.6;    // radius of omnidirectional wheels
+    float length = 8.5;  // length of robot
+    float width = 9.2;   // width of robot
+    
+    // theta_dot_1
+    
+    float theta_dot_1 = 0;
+    float theta_dot_2 = 0;
+    float theta_dot_3 = 0;
+    float theta_dot_4 = 0;
+    
+    // Main closed control loop
+    
+    int servoAngle = 0;
+    averagePhototransistorRead = 0;
+    maxPhototransistorRead = 0;
+    int angleDesired = findLight();
+    
+    while (servoAngle < 180) {
+    
+        myservo.write(servoAngle);
+
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+
+        if (averagePhototransistorRead > maxPhototransistorRead){
+            maxPhototransistorRead = averagePhototransistorRead;
+            angleDesired = 87 - servoAngle;
+        }
+    
+        float x_distance_input = ultrasonic();
+    
+        if (currentAngle > 180) {
+            currentAngleMove = currentAngle - 360;
+        } else {
+            currentAngleMove = currentAngle;
+        } 
+    
+    
+        // Calculate errors // 
+        //////////////////////////////////////
+        x_error = xDistanceDesired - x_distance_input;
+        if (x_error > 200){
+            x_error = 200;
+        }
+        if (x_error < -200){
+            x_error = -200;
+        }
+    
+        angle_error = angleDesired - currentAngleMove;
+        if (angle_error > 90){
+            angle_error = 90;
+        }
+        if (angle_error < -90){
+            angle_error = -90;
+        }
+    
+        if (abs(integral_x_error) < 50){
+            integral_x_error += x_error;
+        }
+    
+        if (abs(integral_angle_error) < 10){
+            integral_angle_error += angle_error;
+        }
+    
+        //////////////////////////////////////
+        
+        // Calculate derivatives
+        derivative_x_error = x_error - previous_x_error;
+        derivative_angle_error = angle_error - previous_angle_error;
+    
+        x_velocity = x_k_p * x_error + x_k_i * integral_x_error + x_k_d * derivative_x_error;
+        angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
+    
+        if (x_velocity > 900){ x_velocity = 900;}
+        if (x_velocity < -900){ x_velocity = -900;}
+    
+        if (angular_velocity > 20){ angular_velocity = 20;}
+        if (angular_velocity < -20){ angular_velocity = -20;}
+    
+        // Calculate control outputs
+        //matrix that does some stuff dervied into eqns
+        theta_dot_1 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
+        theta_dot_2 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
+        theta_dot_3 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
+        theta_dot_4 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
+    
+        // THETA to motor
+        // Send angular velocities of wheels to robot servo motor
+        left_front_motor.writeMicroseconds(1500 - theta_dot_1);
+        right_front_motor.writeMicroseconds(1500 + theta_dot_2);
+        left_rear_motor.writeMicroseconds(1500 - theta_dot_3);
+        right_rear_motor.writeMicroseconds(1500 + theta_dot_4);
+        
+        // Update previous error values
+        previous_x_error = x_error;
+        previous_angle_error = angle_error;
+        bool angleExit = false;
+        bool xExit = false; 
+        if (abs(angle_error)<2){
+            angleExit = true;
+        }
+    
+        if (abs(x_error)<2 && averagePhototransistorRead > 990){
+            xExit = true;
+        }
+
+        if (abs(x_error)<2 && averagePhototransistorRead < 900){
+            //AVOID OBSTACLE TO BE IMPLEMENTED
+        }
+    
+        if (angleExit && xExit){
+          count++;
+        }
+         
+        if (count > 10){
+            stop;
+            currentAngle = 0; 
+            return;
+        }
+        if (!angleExit || !xExit){
+            count = 0;
+        }
+
+        if (servoAngle >= 178){
+            servoAngle = 0;
+        }
+        else {
+            servoAngle++;
+        }
+
+        delay(100);
+    
+    }
+
+}
+
 int findLight(){
 
     myservo.write(0);  // tell servo to go to position in variable 'pos'
-    int maximum = 0;
     int angleDesired;
     int angle = 0;
 
     while (angle < 180){
         myservo.write(angle);
 
-        int intaverageRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
-        if (intaverageRead > maximum){
-            maximum = intaverageRead;
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        if (averagePhototransistorRead > maxPhototransistorRead){
+            maxPhototransistorRead = averagePhototransistorRead;
             angleDesired = angle;
         }
-        Serial.println(intaverageRead);
         angle++;
         delay(20);
     }
     myservo.write(angleDesired);
-    return (-(angleDesired-90)); //<<<<<<<<<<<<<<<<<----------------------------Where is this angle from? Where is 0 degrees?
+    return (87 - angleDesired);
 }
 
 
