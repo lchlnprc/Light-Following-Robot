@@ -268,121 +268,86 @@ STATE stopped() {
 ///////CLOSED LOOP CONTROLS
 
 void turn(float angleDesired) {
-float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
-  float radius = 2.6, length = 8.5, width = 9.2;
-  float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
-  float angular_velocity;
-  int count = 0, currentAngle;
+    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
+    float radius = 2.6, length = 8.5, width = 9.2;
+    float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
+    float angular_velocity;
+    int count = 0;
+    currentAngle = 0;
 
-  while (true) {
-    delay(100);
-    currentAngle = read_gyro_current_angle();
-    angle_error = constrain(angleDesired - currentAngle, -90, 90);
-
-    if (abs(integral_angle_error) < 10) {
-      integral_angle_error += angle_error;
+    while (true) {
+        delay(100);
+        currentAngle = read_gyro_current_angle();
+        angle_error = constrain(angleDesired - currentAngle, -90, 90);
+    
+        if (abs(integral_angle_error) < 10) {
+            integral_angle_error += angle_error;
+        }
+    
+        derivative_angle_error = angle_error - previous_angle_error;
+        angular_velocity = constrain(angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error, -20, 20);
+    
+        float theta_dot_common = (1 / radius) * (angular_velocity * (length + width));
+        float theta_dots[4] = {-theta_dot_common, theta_dot_common, -theta_dot_common, theta_dot_common};
+    
+        left_front_motor.writeMicroseconds(1500 - theta_dots[0]);
+        right_front_motor.writeMicroseconds(1500 + theta_dots[1]);
+        left_rear_motor.writeMicroseconds(1500 - theta_dots[2]);
+        right_rear_motor.writeMicroseconds(1500 + theta_dots[3]);
+    
+        previous_angle_error = angle_error;
+    
+        if (abs(angle_error) < 2) {
+            count++;
+        } else {
+            count = 0;
+        }
+    
+        if (count > 10) {
+            return;
+        }
     }
-
-    derivative_angle_error = angle_error - previous_angle_error;
-    angular_velocity = constrain(angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error, -20, 20);
-
-    float theta_dot_common = (1 / radius) * (angular_velocity * (length + width));
-    float theta_dots[4] = {-theta_dot_common, theta_dot_common, -theta_dot_common, theta_dot_common};
-
-    left_front_motor.writeMicroseconds(1500 - theta_dots[0]);
-    right_front_motor.writeMicroseconds(1500 + theta_dots[1]);
-    left_rear_motor.writeMicroseconds(1500 - theta_dots[2]);
-    right_rear_motor.writeMicroseconds(1500 + theta_dots[3]);
-
-    previous_angle_error = angle_error;
-
-    if (abs(angle_error) < 2) {
-      count++;
-    } else {
-      count = 0;
-    }
-
-    if (count > 10) {
-      return;
-    }
-  }
 }
 
 void straight() {
-    
-    // Reset the current angle
-    float currentAngleMove=0;  
-    currentAngle=0;
-    
-    // Initialize given trajectories
-    
-    float x_error = 0;
-    float angle_error = 0;
-    
-    float x_velocity = 0;
-    float angular_velocity = 0;
-    
-    float x_k_p = 40;   // Proportional gain given in course book
-    float x_k_i = 0.5;  // Integral gain given in course book
-    float x_k_d = 1.002;   // Derivative gain given in course book
-    
-    float angle_k_p = 4;   // Proportional gain given in course book
-    float angle_k_i = 0.0;  // Integral gain given in course book
-    float angle_k_d = 0.0001;   // Derivative gain given in course book
-    
-    
-    // INITIALISING THE ERRORS
-    
-    float previous_x_error = 0;
-    float previous_angle_error = 0;
-    
-    float integral_x_error = 0;
-    float integral_angle_error = 0;
-    
-    float derivative_x_error = 0;
-    float derivative_angle_error = 0;
-    
+
+    currentAngle=0; // Reset the global current angle
+    averagePhototransistorRead = 0;  // Reset the global phototransistor reading
+    maxPhototransistorRead = 0; // Reset the global phototransistor maximum
+
+    float currentAngleMove=0;     
+    float x_error = 0, angle_error = 0;
+    float x_velocity = 0, angular_velocity = 0;
+    float x_k_p = 40, x_k_i = 0.5, x_k_d = 1.002;
+    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001; 
+    float previous_x_error = 0, previous_angle_error = 0, integral_x_error = 0;
+    float integral_angle_error = 0, derivative_x_error = 0, derivative_angle_error = 0;
+    float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
+    float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
+    float x_distance_input = 100;
+ 
     int count = 0;
     int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
-    
-    
-    float radius = 2.6;    // radius of omnidirectional wheels
-    float length = 8.5;  // length of robot
-    float width = 9.2;   // width of robot
-    
-    // theta_dot_1
-    
-    float theta_dot_1 = 0;
-    float theta_dot_2 = 0;
-    float theta_dot_3 = 0;
-    float theta_dot_4 = 0;
-    
-    // Main closed control loop
-    
     int servoAngle = 0;
-    averagePhototransistorRead = 0;
-    maxPhototransistorRead = 0;
     int angleDesired = findLight();
-    
+       
     while (servoAngle < 180) {
-    
-        myservo.write(servoAngle);
 
+        currentAngle = read_gyro_current_angle();
+        x_distance_input = ultrasonic();
+        myservo.write(servoAngle);
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
 
         if (averagePhototransistorRead > maxPhototransistorRead){
             maxPhototransistorRead = averagePhototransistorRead;
             angleDesired = 87 - servoAngle;
         }
-    
-        float x_distance_input = ultrasonic();
-    
+        
         if (currentAngle > 180) {
             currentAngleMove = currentAngle - 360;
         } else {
             currentAngleMove = currentAngle;
         } 
-    
     
         // Calculate errors // 
         //////////////////////////////////////
@@ -409,8 +374,6 @@ void straight() {
         if (abs(integral_angle_error) < 10){
             integral_angle_error += angle_error;
         }
-    
-        //////////////////////////////////////
         
         // Calculate derivatives
         derivative_x_error = x_error - previous_x_error;
@@ -426,13 +389,11 @@ void straight() {
         if (angular_velocity < -20){ angular_velocity = -20;}
     
         // Calculate control outputs
-        //matrix that does some stuff dervied into eqns
         theta_dot_1 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
         theta_dot_2 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
         theta_dot_3 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
         theta_dot_4 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
     
-        // THETA to motor
         // Send angular velocities of wheels to robot servo motor
         left_front_motor.writeMicroseconds(1500 - theta_dot_1);
         right_front_motor.writeMicroseconds(1500 + theta_dot_2);
@@ -442,6 +403,8 @@ void straight() {
         // Update previous error values
         previous_x_error = x_error;
         previous_angle_error = angle_error;
+
+        //Exit conditions
         bool angleExit = false;
         bool xExit = false; 
         if (abs(angle_error)<2){
@@ -453,7 +416,7 @@ void straight() {
         }
 
         if (abs(x_error)<2 && averagePhototransistorRead < 900){
-            //AVOID OBSTACLE TO BE IMPLEMENTED
+            //AVOID OBSTACLE TO BE IMPLEMENTED HERE <-------------------------------------------------OBSTACLE AVOIDANCE!
         }
     
         if (angleExit && xExit){
@@ -477,7 +440,6 @@ void straight() {
         }
 
         delay(100);
-    
     }
 
 }
