@@ -422,8 +422,8 @@ void straight() {
             xExit = true;
         }
 
-        if (abs(x_error)<2 && averagePhototransistorRead < 900){
-            //AVOID OBSTACLE TO BE IMPLEMENTED HERE <-------------------------------------------------OBSTACLE AVOIDANCE!
+        if ((abs(x_error)<4 && averagePhototransistorRead < 900) || read_IR(IR_Front_Left) < 4 || read_IR(IR_Front_Right) < 4){
+            obstacle_Avoidance();
         }
     
         if (angleExit && xExit){
@@ -442,6 +442,40 @@ void straight() {
         delay(80); //80 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
     }
 
+}
+
+void obstacle_Avoidance(){
+    
+    bool _frontLeft = false;
+    bool _frontRight = false;
+    bool _ultrasonic = false;
+    bool _left = false;
+    bool _right = false;
+    
+    if (read_IR(IR_Front_Left) < 4){ _frontLeft = true;}
+    if (read_IR(IR_Front_Right) < 4){ _frontRight = true;}
+    if (ultrasonic() < 4){ _ultrasonic = true;}
+    if (read_IR(IR_Front_Left) < 4){ _frontLeft = true;}
+
+    while (_frontLeft || _frontRight || _ultrasonic || _left || _right){
+
+        if (read_IR(IR_Front_Left) < 4 && ultrasonic() < 4 && read_IR(IR_Front_Right) > 4){
+            while (read_IR(IR_Front_Left) < 4){
+                strafe_right();
+                if (read_IR(IR_Right) < 4){
+                    stop();
+                    break;
+                }
+            }        
+        }
+
+        //AVOID THE OBSTACLES AND SET BOOL TO FALSE WHEN AWAY FROM IT MUCH MORE THINKING NEEDS TO GO INTO THIS FOR EVERY POSSIBLE CASE
+
+
+    }
+
+
+    return;
 }
 
 int findLight(){
