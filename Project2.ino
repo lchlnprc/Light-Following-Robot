@@ -52,6 +52,7 @@ int T = 100;                    // T is the time of one loop
 int sensorValue = 0;            // read out value of sensor
 int averagePhototransistorRead = 0;            //Defining the Global Ultrasonic Reading
 int maxPhototransistorRead = 0;                 //Definining Global Max Ultrasonic
+int firesExtinguished = 0;
 float gyroSupplyVoltage = 5;    // supply voltage for gyro
 float gyroZeroVoltage = 0;    // the value of voltage when gyro is zero
 float gyroSensitivity = 0.007;  // gyro sensitivity unit is (mv/degree/second) get from datasheet
@@ -205,7 +206,29 @@ STATE avoid_obstacle() {
 }
 
 STATE fight_fire() {
-    return NULL;
+
+    averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+    
+    if (averagePhototransistorRead < 900){ //Should implement a count average here of some sort to prevent false readings. 
+        return FIND_CLOSEST_FIRE;
+    }
+
+    digitalWrite(fanPin, HIGH);  // turn on the fan 
+
+    while(averagePhototransistorRead > 900){
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+    }
+    //Light should now be out
+    digitalWrite(fanPin, LOW);  // turn on the fan
+
+    firesExtinguished++;
+
+    if (firesExtinguished < 2){
+        return FIND_CLOSEST_FIRE;
+    }
+    else {
+        return STOPPED;
+    }
 }
 
 
