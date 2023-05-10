@@ -329,19 +329,26 @@ void straight() {
     int count = 0;
     int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
     int servoAngle = 0;
+    int direction = 0;
     int angleDesired = findLight();
+
+    myservo.write(87);
+    servoAngle = 87;
        
-    while (servoAngle < 180) {
+    while (true) {
 
         currentAngle = read_gyro_current_angle();
         x_distance_input = ultrasonic();
-        myservo.write(servoAngle);
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
 
-        if (averagePhototransistorRead > maxPhototransistorRead){
-            maxPhototransistorRead = averagePhototransistorRead;
-            angleDesired = 87 - servoAngle;
+        direction = findLightDirection(servoAngle);
+
+        if (direction != 0) {
+            servoAngle += direction;
+            myservo.write(servoAngle);
         }
+
+        angleDesired = 87 - servoAngle;
+    
         
         if (currentAngle > 180) {
             currentAngleMove = currentAngle - 360;
@@ -432,14 +439,7 @@ void straight() {
             count = 0;
         }
 
-        if (servoAngle >= 178){
-            servoAngle = 0;
-        }
-        else {
-            servoAngle++;
-        }
-
-        delay(100);
+        delay(80); //80 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
     }
 
 }
@@ -463,6 +463,33 @@ int findLight(){
     }
     myservo.write(angleDesired);
     return (87 - angleDesired);
+}
+
+int findLightDirection(int servoAngle) {
+  int leftAngle = servoAngle - 1;
+  int rightAngle = servoAngle + 1;
+  int leftBrightness = 0;
+  int rightBrightness = 0;
+
+  if (leftAngle >= 0) {
+    myservo.write(leftAngle);
+    delay(10);
+    leftBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+  }
+  
+  if (rightAngle <= 180) {
+    myservo.write(rightAngle);
+    delay(10);
+    rightBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+  }
+
+  if (leftBrightness > rightBrightness) {
+    return -1; // Move left
+  } else if (rightBrightness > leftBrightness) {
+    return 1; // Move right
+  } else {
+    return 0; // No change
+  }
 }
 
 
