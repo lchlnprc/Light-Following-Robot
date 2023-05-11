@@ -272,13 +272,16 @@ void turn(float angleDesired) {
     float radius = 2.6, length = 8.5, width = 9.2;
     float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
     float angular_velocity;
-    int count = 0;
+    int count = 0, currentAngleMove;
     currentAngle = 0;
 
     while (true) {
         delay(100);
         currentAngle = read_gyro_current_angle();
-        angle_error = constrain(angleDesired - currentAngle, -90, 90);
+
+        currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
+
+        angle_error = constrain(angleDesired - currentAngleMove, -90, 90);
     
         if (abs(integral_angle_error) < 10) {
             integral_angle_error += angle_error;
@@ -319,7 +322,7 @@ void straight() {
     float x_error = 0, angle_error = 0;
     float x_velocity = 0, angular_velocity = 0;
     float x_k_p = 40, x_k_i = 0.5, x_k_d = 1.002;
-    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001; 
+    float angle_k_p = 20, angle_k_i = 0.0, angle_k_d = 0.0001; 
     float previous_x_error = 0, previous_angle_error = 0, integral_x_error = 0;
     float integral_angle_error = 0, derivative_x_error = 0, derivative_angle_error = 0;
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
@@ -329,10 +332,10 @@ void straight() {
     int count = 0;
     int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
     int servoAngle = 0;
-    int direction = 0;
     int angleDesired = findLight();
 
     myservo.write(87);
+    turn(angleDesired);
     servoAngle = 87;
        
     while (true) {
@@ -340,21 +343,13 @@ void straight() {
         currentAngle = read_gyro_current_angle();
         x_distance_input = ultrasonic();
 
-        direction = findLightDirection(servoAngle);
+        currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
 
-        if (direction != 0) {
-            servoAngle += direction;
-            myservo.write(servoAngle);
-        }
+        servoAngle = findBrightestPoint(servoAngle);
 
         angleDesired = 87 - servoAngle;
     
         
-        if (currentAngle > 180) {
-            currentAngleMove = currentAngle - 360;
-        } else {
-            currentAngleMove = currentAngle;
-        } 
     
         // Calculate errors // 
         //////////////////////////////////////
@@ -439,7 +434,7 @@ void straight() {
             count = 0;
         }
 
-        delay(80); //80 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
+        delay(60); //60 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
     }
 
 }
@@ -500,8 +495,8 @@ int findLight(){
 }
 
 int findLightDirection(int servoAngle) {
-  int leftAngle = servoAngle - 1;
-  int rightAngle = servoAngle + 1;
+  int leftAngle = servoAngle - 4;
+  int rightAngle = servoAngle + 4;
   int leftBrightness = 0;
   int rightBrightness = 0;
 
@@ -518,12 +513,53 @@ int findLightDirection(int servoAngle) {
   }
 
   if (leftBrightness > rightBrightness) {
-    return -1; // Move left
+    return -4; // Move left
   } else if (rightBrightness > leftBrightness) {
-    return 1; // Move right
+    return 4; // Move right
   } else {
     return 0; // No change
   }
+}
+
+int findBrightestPoint(int currentAngle) {
+  int maxBrightness = 0;
+  int maxBrightnessAngle = currentAngle;
+  int angleStep = 2; // Step angle
+  int currentBrightness;
+
+  int direction = findLightDirection(currentAngle); // Check immediate left and right
+  
+  if (direction > 0) {
+    // Scan to the right until brightness decreases
+    for(int angle = currentAngle; angle <= 180; angle += angleStep) {
+      myservo.write(angle);
+      delay(10);
+      currentBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+
+      if(currentBrightness > maxBrightness) {
+        maxBrightness = currentBrightness;
+        maxBrightnessAngle = angle;
+      } else if(currentBrightness < maxBrightness) {
+        break; // Brightness has started decreasing, break the loop
+      }
+    }
+  } else if (direction < 0) {
+    // Scan to the left until brightness decreases
+    for(int angle = currentAngle; angle >= 0; angle -= angleStep) {
+      myservo.write(angle);
+      delay(10);
+      currentBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+
+      if(currentBrightness > maxBrightness) {
+        maxBrightness = currentBrightness;
+        maxBrightnessAngle = angle;
+      } else if(currentBrightness < maxBrightness) {
+        break; // Brightness has started decreasing, break the loop
+      }
+    }
+  }
+
+  return maxBrightnessAngle;
 }
 
 
