@@ -176,17 +176,9 @@ STATE find_closest_fire() {
 
     myservo.write(87);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
 
-    while (angle < 360){
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
-        if (averagePhototransistorRead > maxPhototransistorRead){
-            maxPhototransistorRead = averagePhototransistorRead;
-            desiredAngle = angle;
-        }
-        turn(10);
-        angle+=10;
-    }
+    int desiredAngle = turn(360);
 
-    turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
+    int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
 
     averagePhototransistorRead = 0; //Reset Global Phototransistor Values
     maxPhototransistorRead = 0;
@@ -267,17 +259,23 @@ STATE stopped() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////CLOSED LOOP CONTROLS
 
-void turn(float angleDesired) {
+int turn(float angleDesired) {
     float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
     float radius = 2.6, length = 8.5, width = 9.2;
     float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
     float angular_velocity;
-    int count = 0, currentAngleMove;
+    int count = 0, currentAngleMove, desiredAngle;
     currentAngle = 0;
 
     while (true) {
         delay(100);
         currentAngle = read_gyro_current_angle();
+
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        if (averagePhototransistorRead > maxPhototransistorRead){
+            maxPhototransistorRead = averagePhototransistorRead;
+            desiredAngle = currentAngle;
+        }
 
         currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
 
@@ -300,14 +298,14 @@ void turn(float angleDesired) {
     
         previous_angle_error = angle_error;
     
-        if (abs(angle_error) < 2) {
+        if (abs(angle_error) < 5) {
             count++;
         } else {
             count = 0;
         }
     
-        if (count > 10) {
-            return;
+        if (count > 5) {
+            return desiredAngle;
         }
     }
 }
@@ -335,7 +333,7 @@ void straight() {
     int angleDesired = findLight();
 
     myservo.write(87);
-    turn(angleDesired);
+    int _ = turn(angleDesired);
     servoAngle = 87;
        
     while (true) {
