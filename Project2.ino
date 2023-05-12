@@ -171,7 +171,6 @@ STATE initialising() {
 STATE find_closest_fire() {
 
     int angle = 0;
-    int desiredAngle = 0;
     maxPhototransistorRead = 0;
 
     myservo.write(87);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
@@ -265,10 +264,15 @@ int turn(float angleDesired) {
     float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
     float angular_velocity;
     int count = 0, currentAngleMove, desiredAngle;
+    bool _overflowTrigger = false;
     currentAngle = 0;
 
     while (true) {
         delay(100);
+
+        currentAngle = read_gyro_current_angle() - (angleDesired < 0 ? 360 : 0);
+        _overflowTrigger = (angleDesired > 350 && currentAngle > 345 && currentAngle < 350) ? true : _overflowTrigger;
+        currentAngle += (_overflowTrigger && currentAngle < 50) ? 360 : 0;
         currentAngle = read_gyro_current_angle();
 
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
@@ -277,7 +281,6 @@ int turn(float angleDesired) {
             desiredAngle = currentAngle;
         }
 
-        currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
 
         angle_error = constrain(angleDesired - currentAngleMove, -90, 90);
     
@@ -298,12 +301,8 @@ int turn(float angleDesired) {
     
         previous_angle_error = angle_error;
     
-        if (abs(angle_error) < 5) {
-            count++;
-        } else {
-            count = 0;
-        }
-    
+        count = (abs(angle_error) < 5 ? count + 1 : 0);
+
         if (count > 5) {
             return desiredAngle;
         }
@@ -493,27 +492,14 @@ int findLight(){
 }
 
 int findLightDirection(int servoAngle) {
-  int leftAngle = servoAngle - 4;
-  int rightAngle = servoAngle + 4;
-  int leftBrightness = 0;
-  int rightBrightness = 0;
 
-  if (leftAngle >= 0) {
-    myservo.write(leftAngle);
-    delay(10);
-    leftBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
-  }
-  
-  if (rightAngle <= 180) {
-    myservo.write(rightAngle);
-    delay(10);
-    rightBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
-  }
+    int leftBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2)) / 2;
+    int rightBrightness = (phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 2;
 
   if (leftBrightness > rightBrightness) {
-    return -4; // Move left
+    return 1; // Move left
   } else if (rightBrightness > leftBrightness) {
-    return 4; // Move right
+    return -1; // Move right
   } else {
     return 0; // No change
   }
