@@ -171,6 +171,7 @@ STATE initialising() {
 STATE find_closest_fire() {
 
     int angle = 0;
+    int desiredAngle = 0;
     maxPhototransistorRead = 0;
 
     myservo.write(87);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
@@ -272,8 +273,7 @@ int turn(float angleDesired) {
 
         currentAngle = read_gyro_current_angle() - (angleDesired < 0 ? 360 : 0);
         _overflowTrigger = (angleDesired > 350 && currentAngle > 345 && currentAngle < 350) ? true : _overflowTrigger;
-        currentAngle += (_overflowTrigger && currentAngle < 50) ? 360 : 0;
-        currentAngle = read_gyro_current_angle();
+        currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
 
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
         if (averagePhototransistorRead > maxPhototransistorRead){
@@ -281,12 +281,9 @@ int turn(float angleDesired) {
             desiredAngle = currentAngle;
         }
 
-
         angle_error = constrain(angleDesired - currentAngleMove, -90, 90);
     
-        if (abs(integral_angle_error) < 10) {
-            integral_angle_error += angle_error;
-        }
+        integral_angle_error += (abs(integral_angle_error) < 10 ? angle_error : 0);
     
         derivative_angle_error = angle_error - previous_angle_error;
         angular_velocity = constrain(angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error, -20, 20);
@@ -319,7 +316,7 @@ void straight() {
     float x_error = 0, angle_error = 0;
     float x_velocity = 0, angular_velocity = 0;
     float x_k_p = 40, x_k_i = 0.5, x_k_d = 1.002;
-    float angle_k_p = 20, angle_k_i = 0.0, angle_k_d = 0.0001; 
+    float angle_k_p = 6, angle_k_i = 0.0, angle_k_d = 0.0001; 
     float previous_x_error = 0, previous_angle_error = 0, integral_x_error = 0;
     float integral_angle_error = 0, derivative_x_error = 0, derivative_angle_error = 0;
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
@@ -331,9 +328,9 @@ void straight() {
     int servoAngle = 0;
     int angleDesired = findLight();
 
-    myservo.write(87);
+    myservo.write(85);
     int _ = turn(angleDesired);
-    servoAngle = 87;
+    servoAngle = 85;
        
     while (true) {
 
@@ -342,12 +339,13 @@ void straight() {
 
         currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
 
-        servoAngle = findBrightestPoint(servoAngle);
+        servoAngle+=findLightDirection();
 
-        angleDesired = 87 - servoAngle;
+        myservo.write(servoAngle);
+
+        angleDesired = 85 - servoAngle;
     
         
-    
         // Calculate errors // 
         //////////////////////////////////////
         x_error = xDistanceDesired - x_distance_input;
@@ -431,7 +429,7 @@ void straight() {
             count = 0;
         }
 
-        delay(60); //60 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
+        delay(100); //60 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
     }
 
 }
@@ -491,61 +489,29 @@ int findLight(){
     return (87 - angleDesired);
 }
 
-int findLightDirection(int servoAngle) {
+int findLightDirection() {
+    const int numReadings = 5; // Number of readings to take
+    int totalLeftBrightness = 0;
+    int totalRightBrightness = 0;
 
-    int leftBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2)) / 2;
-    int rightBrightness = (phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 2;
-
-  if (leftBrightness > rightBrightness) {
-    return 1; // Move left
-  } else if (rightBrightness > leftBrightness) {
-    return -1; // Move right
-  } else {
-    return 0; // No change
-  }
-}
-
-int findBrightestPoint(int currentAngle) {
-  int maxBrightness = 0;
-  int maxBrightnessAngle = currentAngle;
-  int angleStep = 2; // Step angle
-  int currentBrightness;
-
-  int direction = findLightDirection(currentAngle); // Check immediate left and right
-  
-  if (direction > 0) {
-    // Scan to the right until brightness decreases
-    for(int angle = currentAngle; angle <= 180; angle += angleStep) {
-      myservo.write(angle);
-      delay(10);
-      currentBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
-
-      if(currentBrightness > maxBrightness) {
-        maxBrightness = currentBrightness;
-        maxBrightnessAngle = angle;
-      } else if(currentBrightness < maxBrightness) {
-        break; // Brightness has started decreasing, break the loop
-      }
+    // Take multiple readings and average them
+    for (int i = 0; i < numReadings; ++i) {
+        totalLeftBrightness += (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2)) / 2;
+        totalRightBrightness += (phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 2;
     }
-  } else if (direction < 0) {
-    // Scan to the left until brightness decreases
-    for(int angle = currentAngle; angle >= 0; angle -= angleStep) {
-      myservo.write(angle);
-      delay(10);
-      currentBrightness = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
 
-      if(currentBrightness > maxBrightness) {
-        maxBrightness = currentBrightness;
-        maxBrightnessAngle = angle;
-      } else if(currentBrightness < maxBrightness) {
-        break; // Brightness has started decreasing, break the loop
-      }
-    }
-  }
+    int leftBrightness = totalLeftBrightness / numReadings;
+    int rightBrightness = totalRightBrightness / numReadings;
 
-  return maxBrightnessAngle;
+    int difference = leftBrightness - rightBrightness;
+    int direction = (difference > 0) - (difference < 0); // 1 if left is brighter, -1 if right is brighter, 0 if equal
+
+    // Take the absolute difference and scale it by some factor for a larger response
+    // We use min to cap it at 15
+    int magnitude = min(abs(difference) * 0.1, 15.0);
+
+    return direction * magnitude;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////SENSOR FUNCTIONS
