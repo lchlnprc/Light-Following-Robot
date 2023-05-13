@@ -171,7 +171,6 @@ STATE initialising() {
 STATE find_closest_fire() {
 
     int angle = 0;
-    int desiredAngle = 0;
     maxPhototransistorRead = 0;
 
     myservo.write(87);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
@@ -338,7 +337,7 @@ void straight() {
         x_distance_input = ultrasonic();
 
         currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
-
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4; 
         servoAngle+=findLightDirection();
 
         myservo.write(servoAngle);
@@ -402,34 +401,33 @@ void straight() {
         previous_angle_error = angle_error;
 
         //Exit conditions
-        bool angleExit = false;
         bool xExit = false; 
-        if (abs(angle_error)<2){
-            angleExit = true;
-        }
     
-        if (abs(x_error)<2 && averagePhototransistorRead > 990){
+        if (abs(x_error)<5 && averagePhototransistorRead > 990){
             xExit = true;
         }
 
-        if ((abs(x_error)<4 && averagePhototransistorRead < 900) || read_IR(IR_Front_Left) < 4 || read_IR(IR_Front_Right) < 4){
+        if (abs(x_error)<5 || read_IR(IR_Front_Left) < 5 || read_IR(IR_Front_Right) < 5){
+            if(averagePhototransistorRead < 900){
+            stop();
             obstacle_Avoidance();
+            }
         }
     
-        if (angleExit && xExit){
+        if (xExit){
           count++;
         }
          
-        if (count > 10){
+        if (count > 5){
             stop;
             currentAngle = 0; 
             return;
         }
-        if (!angleExit || !xExit){
+        if (!xExit){
             count = 0;
         }
 
-        delay(100); //60 instead of 100 due to delays in moving servo. Needs to total 100 for gyro accuracy
+        delay(100);
     }
 
 }
