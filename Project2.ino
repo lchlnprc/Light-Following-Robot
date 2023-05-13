@@ -433,6 +433,8 @@ void straight() {
 }
 
 void obstacle_Avoidance(){
+
+    stop();
     
     bool _frontLeft = false;
     bool _frontRight = false;
@@ -440,31 +442,52 @@ void obstacle_Avoidance(){
     bool _left = false;
     bool _right = false;
     
-    if (read_IR(IR_Front_Left) < 4){ _frontLeft = true;}
-    if (read_IR(IR_Front_Right) < 4){ _frontRight = true;}
-    if (ultrasonic() < 4){ _ultrasonic = true;}
-    if (read_IR(IR_Front_Left) < 4){ _frontLeft = true;}
+    (read_IR(IR_Front_Left) < 4) ? _frontLeft = true : _frontLeft = false;
+    (read_IR(IR_Front_Right) < 4) ? _frontRight = true : _frontRight = false;
+    (ultrasonic() < 4) ? _ultrasonic = true : _ultrasonic = false;
+    (read_IR(IR_Left) < 4) ? _left = true : _left = false;
+    (read_IR(IR_Right) < 4) ? _right = true : _right = false;
 
     while (_frontLeft || _frontRight || _ultrasonic || _left || _right){
 
         if (read_IR(IR_Front_Left) < 4 && ultrasonic() < 4 && read_IR(IR_Front_Right) > 4){
             while (read_IR(IR_Front_Left) < 4){
                 strafe_right();
-                if (read_IR(IR_Right) < 4){
-                    stop();
-                    break;
                 }
-            }        
-        }
+            stop();
+            forward();
+            delay(10000);
+            stop();
+            strafe_left();
+            delay(10000);
+            stop();
+        }        
 
-        //AVOID THE OBSTACLES AND SET BOOL TO FALSE WHEN AWAY FROM IT MUCH MORE THINKING NEEDS TO GO INTO THIS FOR EVERY POSSIBLE CASE
+        if (read_IR(IR_Front_Right) < 4 && ultrasonic() < 4 && read_IR(IR_Front_Left) > 4){
+            while (read_IR(IR_Front_Right) < 4){
+                strafe_right();
+                }
+            stop();
+            forward();
+            delay(10000);
+            stop();
+            strafe_right();
+            delay(10000);
+            stop();
+        }  
 
+        (read_IR(IR_Front_Left) < 4) ? _frontLeft = true : _frontLeft = false;
+        (read_IR(IR_Front_Right) < 4) ? _frontRight = true : _frontRight = false;
+        (ultrasonic() < 4) ? _ultrasonic = true : _ultrasonic = false;
+        (read_IR(IR_Left) < 4) ? _left = true : _left = false;
+        (read_IR(IR_Right) < 4) ? _right = true : _right = false;
 
     }
 
-
     return;
+
 }
+
 
 int findLight(){
 
