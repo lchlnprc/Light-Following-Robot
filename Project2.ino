@@ -173,7 +173,7 @@ STATE find_closest_fire() {
     int angle = 0;
     maxPhototransistorRead = 0;
 
-    myservo.write(87);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
+    myservo.write(85);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
 
     int desiredAngle = turn(360);
 
@@ -189,7 +189,7 @@ STATE travel_to_fire() {
 
     straight(); //FUNCTION WITH PID CONTROL ON GYRO AND X AXIS BASED ON BRIGHTEST FIRE SOURCE
 
-    return FIND_CLOSEST_FIRE;
+    return FIGHT_FIRE;
 }
 
 STATE avoid_obstacle() {
@@ -403,13 +403,13 @@ void straight() {
         //Exit conditions
         bool xExit = false; 
     
-        if (abs(x_error)<5 && averagePhototransistorRead > 990){
+        if (abs(x_error)<5 && averagePhototransistorRead > 900){
             xExit = true;
         }
 
         if (abs(x_error)<5 || read_IR(IR_Front_Left) < 5 || read_IR(IR_Front_Right) < 5){
-            if(averagePhototransistorRead < 900){
             stop();
+            if(averagePhototransistorRead < 900){
             obstacle_Avoidance();
             }
         }
@@ -419,7 +419,7 @@ void straight() {
         }
          
         if (count > 5){
-            stop;
+            stop();
             currentAngle = 0; 
             return;
         }
