@@ -177,6 +177,8 @@ STATE find_closest_fire() {
 
     int desiredAngle = turn(360);
 
+    delay(1000);
+
     int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
 
     averagePhototransistorRead = 0; //Reset Global Phototransistor Values
@@ -269,9 +271,10 @@ int turn(float angleDesired) {
 
     while (true) {
         delay(100);
+        Serial.println(currentAngle);
 
         currentAngle = read_gyro_current_angle() - (angleDesired < 0 ? 360 : 0);
-        _overflowTrigger = (angleDesired > 350 && currentAngle > 345 && currentAngle < 350) ? true : _overflowTrigger;
+        _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
         currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
 
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
@@ -280,7 +283,7 @@ int turn(float angleDesired) {
             desiredAngle = currentAngle;
         }
 
-        angle_error = constrain(angleDesired - currentAngleMove, -90, 90);
+        angle_error = constrain(angleDesired - currentAngle, -90, 90);
     
         integral_angle_error += (abs(integral_angle_error) < 10 ? angle_error : 0);
     
