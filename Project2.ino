@@ -202,13 +202,13 @@ STATE fight_fire() {
 
     averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
     
-    if (averagePhototransistorRead < 900){ //Should implement a count average here of some sort to prevent false readings. 
+    if (averagePhototransistorRead < 100){ //Should implement a count average here of some sort to prevent false readings. 
         return FIND_CLOSEST_FIRE;
     }
 
     digitalWrite(fanPin, HIGH);  // turn on the fan 
 
-    while(averagePhototransistorRead > 900){
+    while(averagePhototransistorRead > 100){
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
     }
     //Light should now be out
@@ -317,8 +317,8 @@ void straight() {
     float currentAngleMove=0;     
     float x_error = 0, angle_error = 0;
     float x_velocity = 0, angular_velocity = 0;
-    float x_k_p = 40, x_k_i = 0.5, x_k_d = 1.002;
-    float angle_k_p = 6, angle_k_i = 0.0, angle_k_d = 0.0001; 
+    float x_k_p = 20, x_k_i = 0.5, x_k_d = 1.002;
+    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001; 
     float previous_x_error = 0, previous_angle_error = 0, integral_x_error = 0;
     float integral_angle_error = 0, derivative_x_error = 0, derivative_angle_error = 0;
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
@@ -345,7 +345,7 @@ void straight() {
 
         myservo.write(servoAngle);
 
-        angleDesired = 85 - servoAngle;
+        angleDesired = 86 - servoAngle;
     
         
         // Calculate errors // 
@@ -381,11 +381,11 @@ void straight() {
         x_velocity = x_k_p * x_error + x_k_i * integral_x_error + x_k_d * derivative_x_error;
         angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
     
-        if (x_velocity > 900){ x_velocity = 900;}
-        if (x_velocity < -900){ x_velocity = -900;}
+        if (x_velocity > 600){ x_velocity = 600;}
+        if (x_velocity < -600){ x_velocity = -600;}
     
-        if (angular_velocity > 20){ angular_velocity = 20;}
-        if (angular_velocity < -20){ angular_velocity = -20;}
+        if (angular_velocity > 50){ angular_velocity = 50;}
+        if (angular_velocity < -50){ angular_velocity = -50;}
     
         // Calculate control outputs
         theta_dot_1 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
@@ -406,16 +406,16 @@ void straight() {
         //Exit conditions
         bool xExit = false; 
     
-        if (abs(x_error)<5 && averagePhototransistorRead > 900){
+        if (abs(x_error)<5 && averagePhototransistorRead > 100){
             xExit = true;
         }
 
-        if (abs(x_error)<5 || read_IR(IR_Front_Left) < 5 || read_IR(IR_Front_Right) < 5){
-            stop();
-            if(averagePhototransistorRead < 900){
-            obstacle_Avoidance();
-            }
-        }
+        // if (abs(x_error)<5 || read_IR(IR_Front_Left) < 5 || read_IR(IR_Front_Right) < 5){
+        //     stop();
+        //     if(averagePhototransistorRead < 900){
+        //     obstacle_Avoidance(); THIS IS BROKEN BECAUSAE IRs are scuffed
+        //     }
+        // }
     
         if (xExit){
           count++;
@@ -514,7 +514,7 @@ int findLight(){
 }
 
 int findLightDirection() {
-    const int numReadings = 5; // Number of readings to take
+    const int numReadings = 10; // Number of readings to take
     int totalLeftBrightness = 0;
     int totalRightBrightness = 0;
 
@@ -532,7 +532,7 @@ int findLightDirection() {
 
     // Take the absolute difference and scale it by some factor for a larger response
     // We use min to cap it at 15
-    int magnitude = min(abs(difference) * 0.1, 15.0);
+    int magnitude = min(abs(difference) * 0.1, 10.0);
 
     return direction * magnitude;
 }
@@ -623,7 +623,14 @@ float read_IR(uint8_t Sensor) {
 }
 
 float phototransistor(uint8_t Sensor){
-    return analogRead(Sensor); //A value of 0 means no light, 1024 means maximum light
+    int iterations = 2;
+    int count = 0;
+    long brightness = 0;
+    while (count < iterations){
+        brightness += analogRead(Sensor); //A value of 0 means no light, 1024 means maximum light
+        count++;
+    }
+    return (brightness / iterations);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
