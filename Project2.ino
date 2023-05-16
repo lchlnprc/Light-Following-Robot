@@ -71,6 +71,12 @@ const int ECHO_PIN = 49;
 // Anything over 400 cm (23200 us pulse) is "out of range". Hit:If you decrease to this the ranging sensor but the timeout is short, you may not need to read up to 4meters.
 const unsigned int MAX_DIST = 23200;
 
+volatile bool _frontLeft;   //Bools for obstacle avoidance check
+volatile bool _frontRight;
+volatile bool _ultrasonic;
+volatile bool _left;
+volatile bool _right;
+
 Servo left_front_motor;   // create servo object to control Vex Motor Controller 29
 Servo left_rear_motor;    // create servo object to control Vex Motor Controller 29
 Servo right_rear_motor;   // create servo object to control Vex Motor Controller 29
@@ -178,8 +184,6 @@ STATE find_closest_fire() {
     int desiredAngle = turn(360);
 
     desiredAngle -= (desiredAngle > 180) ? 360 : 0;
-
-    delay(1000);
 
     int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
 
@@ -417,9 +421,10 @@ void straight() {
         }
 
          if (abs(x_error)<5 || read_IR(IR_Front_Left) < 5 || read_IR(IR_Front_Right) < 5){
-             if(averagePhototransistorRead < 40){
-             obstacle_Avoidance(); THIS IS BROKEN BECAUSAE IRs are scuffed
-             }
+            if(averagePhototransistorRead < 40){
+                stop();
+                obstacle_Avoidance();
+            }
          }
     
         if (xExit){
@@ -443,23 +448,14 @@ void straight() {
 void obstacle_Avoidance(){
 
     stop();
-    
-    bool _frontLeft = false;
-    bool _frontRight = false;
-    bool _ultrasonic = false;
-    bool _left = false;
-    bool _right = false;
-    
-    (read_IR(IR_Front_Left) < 4) ? _frontLeft = true : _frontLeft = false;
-    (read_IR(IR_Front_Right) < 4) ? _frontRight = true : _frontRight = false;
-    (ultrasonic() < 4) ? _ultrasonic = true : _ultrasonic = false;
-    (read_IR(IR_Left) < 4) ? _left = true : _left = false;
-    (read_IR(IR_Right) < 4) ? _right = true : _right = false;
+    obstacle_avoidance_check();
 
     while (_frontLeft || _frontRight || _ultrasonic || _left || _right){
 
-        if (read_IR(IR_Front_Left) < 4 && ultrasonic() < 4 && read_IR(IR_Front_Right) > 4){
-            while (read_IR(IR_Front_Left) < 4){
+        obstacle_avoidance_check();
+        //Obstacle on Front Left
+        if (_frontLeft && !_frontRight && !_left && !_right){
+            while (read_IR(IR_Front_Left) < 5){
                 strafe_right();
                 }
             stop();
@@ -469,10 +465,12 @@ void obstacle_Avoidance(){
             strafe_left();
             delay(10000);
             stop();
-        }        
+        }    
 
-        if (read_IR(IR_Front_Right) < 4 && ultrasonic() < 4 && read_IR(IR_Front_Left) > 4){
-            while (read_IR(IR_Front_Right) < 4){
+        obstacle_avoidance_check();
+        //Obstacle on Front Right
+        if (_frontRight && !_frontLeft && !_left && !_right){
+            while (read_IR(IR_Front_Right) < 5){
                 strafe_right();
                 }
             stop();
@@ -482,18 +480,54 @@ void obstacle_Avoidance(){
             strafe_right();
             delay(10000);
             stop();
+        }
+
+        obstacle_avoidance_check();
+        //Obstacle directly in front
+        if (_ultrasonic && !_left && !_right){
+            while (read_IR(IR_Front_Left) < 5){
+                strafe_right();
+                }
+            stop();
+            forward();
+            delay(10000);
+            stop();
+            strafe_left();
+            delay(10000);
+            stop();
         }  
 
-        (read_IR(IR_Front_Left) < 4) ? _frontLeft = true : _frontLeft = false;
-        (read_IR(IR_Front_Right) < 4) ? _frontRight = true : _frontRight = false;
-        (ultrasonic() < 4) ? _ultrasonic = true : _ultrasonic = false;
-        (read_IR(IR_Left) < 4) ? _left = true : _left = false;
-        (read_IR(IR_Right) < 4) ? _right = true : _right = false;
+        obstacle_avoidance_check();
+        //In Left Corner
+        if (_left && _frontLeft){
+            myservo.write(85);  
+            int desiredAngle = turn(360);
+            desiredAngle -= (desiredAngle > 180) ? 360 : 0;
+            int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
+        }
 
+        obstacle_avoidance_check();
+        //In Right Corner
+        if (_right && _frontRight){
+            myservo.write(85); 
+            int desiredAngle = turn(360);
+            desiredAngle -= (desiredAngle > 180) ? 360 : 0;
+            int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
+        }
+        obstacle_avoidance_check();
     }
-
     return;
+}
 
+
+void obstacle_avoidance_check(){
+    int _obstacleTolerance = 5;
+
+    _frontLeft = (read_IR(IR_Front_Left) < _obstacleTolerance) ? true : false;
+    _frontRight = (read_IR(IR_Front_Right) < _obstacleTolerance) ? true : false;
+    _ultrasonic = (ultrasonic() < _obstacleTolerance) ? true : false;
+    _left = (read_IR(IR_Left) < _obstacleTolerance) ? true : false;
+    _right = (read_IR(IR_Right) < _obstacleTolerance)? true : false;
 }
 
 
@@ -628,7 +662,7 @@ float read_IR(uint8_t Sensor) {
 }
 
 float phototransistor(uint8_t Sensor){
-    int iterations = 2;
+    int iterations = 5;
     int count = 0;
     long brightness = 0;
     while (count < iterations){
