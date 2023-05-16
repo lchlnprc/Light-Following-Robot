@@ -59,6 +59,7 @@ float gyroSensitivity = 0.007;  // gyro sensitivity unit is (mv/degree/second) g
 float rotationThreshold = 2;    // because of gyro drifting, defining rotation angular velocity  less than this value will not be ignored
 float gyroRate = 0;             // read out value of sensor in voltage
 volatile float currentAngle = 0;         // current angle calculated by angular velocity integral on
+volatile int gyro_count = 0;
 byte serialRead = 0;  // for serial print control
 //Default motor control pins
 const byte left_front = 50;
@@ -79,6 +80,7 @@ Servo turret_motor;
 
 int speed_val = 150;
 int speed_change;
+
 
 //Serial Pointer
 HardwareSerial *SerialCom;
@@ -123,6 +125,10 @@ void setup(void) {
     
     pinMode(trigPin, OUTPUT);                          // Sets the trigPin as an OUTPUT
     pinMode(echoPin, INPUT);                           // Sets the echoPin as an INPUT
+
+    Timer1.initialize(1000000 / TIMER_FREQ);
+    Timer1.attachInterrupt(timerISR);
+    Timer1.setPeriod(1000);
     
     Serial.println("Setup Complete");
 }
@@ -271,9 +277,7 @@ int turn(float angleDesired) {
 
     while (true) {
         delay(100);
-        Serial.println(currentAngle);
-
-        currentAngle = read_gyro_current_angle() - (angleDesired < 0 ? 360 : 0);
+        currentAngle = currentAngle - (angleDesired < 0 ? 360 : 0);
         _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
         currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
 
@@ -335,8 +339,6 @@ void straight() {
     servoAngle = 85;
        
     while (true) {
-
-        currentAngle = read_gyro_current_angle();
         x_distance_input = ultrasonic();
 
         currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
@@ -588,7 +590,6 @@ float read_gyro_current_angle() {
             angleChange=0;
         }
         currentAngle += angleChange;
-        //Serial.println(angleChange);
     }
     
       // keep the angle between 0-360
@@ -623,7 +624,7 @@ float read_IR(uint8_t Sensor) {
 }
 
 float phototransistor(uint8_t Sensor){
-    int iterations = 2;
+    int iterations = 20;
     int count = 0;
     long brightness = 0;
     while (count < iterations){
@@ -631,6 +632,15 @@ float phototransistor(uint8_t Sensor){
         count++;
     }
     return (brightness / iterations);
+}
+
+void timerISR() {
+  gyro_count++;
+  if (gyro_count > 100){
+  currentAngle = read_gyro_current_angle();
+  Serial.println(currentAngle);
+  gyro_count = 0;
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
