@@ -125,10 +125,8 @@ void setup(void) {
     
     pinMode(trigPin, OUTPUT);                          // Sets the trigPin as an OUTPUT
     pinMode(echoPin, INPUT);                           // Sets the echoPin as an INPUT
-
-    Timer1.initialize(1000000 / TIMER_FREQ);
-    Timer1.attachInterrupt(timerISR);
-    Timer1.setPeriod(1000);
+    Timer1.initialize(100000);
+    Timer1.attachInterrupt(read_gyro_current_angle);
     
     Serial.println("Setup Complete");
 }
@@ -137,7 +135,7 @@ void setup(void) {
 //////MAIN LOOP
 
 void loop(void)  
-{
+{     
     static STATE machine_state = INITIALISING;
     //Finite-state machine Code
     switch (machine_state) {
@@ -276,10 +274,11 @@ int turn(float angleDesired) {
     currentAngle = 0;
 
     while (true) {
-        delay(100);
-        currentAngle = currentAngle - (angleDesired < 0 ? 360 : 0);
-        _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
-        currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
+      delay(200);
+        Serial.println(currentAngle);
+        currentAngleMove = currentAngle - (angleDesired < 0 ? 360 : 0);
+        _overflowTrigger = (angleDesired > 350 && currentAngleMove > 340 && currentAngleMove < 355) ? true : _overflowTrigger;
+        currentAngleMove += (_overflowTrigger && currentAngleMove < 50 && currentAngleMove >= 0) ? 360 : 0;
 
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
         if (averagePhototransistorRead > maxPhototransistorRead){
@@ -287,7 +286,7 @@ int turn(float angleDesired) {
             desiredAngle = currentAngle;
         }
 
-        angle_error = constrain(angleDesired - currentAngle, -90, 90);
+        angle_error = constrain(angleDesired - currentAngleMove, -90, 90);
     
         integral_angle_error += (abs(integral_angle_error) < 10 ? angle_error : 0);
     
@@ -557,7 +556,7 @@ float ultrasonic() {  //<------------------------------------------------ Ultras
     return measurement;
 }
 
-float read_gyro_current_angle() {
+void read_gyro_current_angle(void) {
    
     if (Serial.available())  // Check for input from terminal
     {
@@ -598,8 +597,6 @@ float read_gyro_current_angle() {
     } else if (currentAngle > 359) {
         currentAngle -= 360;
     }
-
-    return (currentAngle);
 }
 
 float read_IR(uint8_t Sensor) {
@@ -634,14 +631,6 @@ float phototransistor(uint8_t Sensor){
     return (brightness / iterations);
 }
 
-void timerISR() {
-  gyro_count++;
-  if (gyro_count > 100){
-  currentAngle = read_gyro_current_angle();
-  Serial.println(currentAngle);
-  gyro_count = 0;
-  }
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // BASIC KINEMATICS
