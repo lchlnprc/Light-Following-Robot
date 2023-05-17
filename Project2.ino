@@ -645,16 +645,16 @@ float read_IR(uint8_t Sensor) {
     float distance_measurement;
     float sensorMeasurement = analogRead(Sensor) * (5.0 / 1023.0); // Reading sensor value and converting it to voltage
     
-    if(Sensor == phototransistor_left_1){
-        distance_measurement = 20.204 * pow(sensorMeasurement, -1.93);
+    if(Sensor == IR_Front_Left){
+        distance_measurement = 8.05 * pow(sensorMeasurement, -1.93);
     }
-    if(Sensor == phototransistor_left_2){
+    if(Sensor == IR_Front_Right){
         distance_measurement = 9.1618 * pow(sensorMeasurement, -1.132);
     }
-    if(Sensor == phototransistor_right_1){
-        distance_measurement = 8.05 * pow(sensorMeasurement, -1.072);
+    if(Sensor == IR_Left){
+        distance_measurement = 20.204 * pow(sensorMeasurement, -1.072);
     }
-    if(Sensor == phototransistor_right_2){
+    if(Sensor == IR_Right){
         distance_measurement = 23.596 * pow(sensorMeasurement, -1.818);
     }
 
