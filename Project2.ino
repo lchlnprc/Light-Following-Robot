@@ -195,13 +195,203 @@ STATE find_closest_fire() {
 
 STATE travel_to_fire() {
 
-    straight(); //FUNCTION WITH PID CONTROL ON GYRO AND X AXIS BASED ON BRIGHTEST FIRE SOURCE
+    currentAngle=0; // Reset the global current angle
+    averagePhototransistorRead = 0;  // Reset the global phototransistor reading
+    maxPhototransistorRead = 0; // Reset the global phototransistor maximum
+
+    float currentAngleMove=0;     
+    float x_error = 0, angle_error = 0;
+    float x_velocity = 0, angular_velocity = 0;
+    float x_k_p = 20, x_k_i = 0.5, x_k_d = 1.002;
+    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001; 
+    float previous_x_error = 0, previous_angle_error = 0, integral_x_error = 0;
+    float integral_angle_error = 0, derivative_x_error = 0, derivative_angle_error = 0;
+    float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
+    float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
+    float x_distance_input = 100;
+ 
+    int count = 0;
+    int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
+    int servoAngle = 0;
+    int angleDesired = findLight();
+    angleDesired -= (angleDesired > 180) ? 360 : 0;
+    myservo.write(85);
+    int _ = turn(angleDesired);
+    servoAngle = 85;
+       
+    while (true) {
+
+        currentAngle = read_gyro_current_angle();
+        x_distance_input = ultrasonic();
+
+        currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4; 
+        if (averagePhototransistorRead < 40){
+            
+        }
+        else{
+        servoAngle+=findLightDirection();
+
+        myservo.write(servoAngle);
+
+        angleDesired = 86 - servoAngle;
+        }
+        
+        // Calculate errors // 
+        //////////////////////////////////////
+        x_error = xDistanceDesired - x_distance_input;
+        if (x_error > 200){
+            x_error = 200;
+        }
+        if (x_error < -200){
+            x_error = -200;
+        }
+    
+        angle_error = angleDesired - currentAngleMove;
+        if (angle_error > 90){
+            angle_error = 90;
+        }
+        if (angle_error < -90){
+            angle_error = -90;
+        }
+    
+        if (abs(integral_x_error) < 50){
+            integral_x_error += x_error;
+        }
+    
+        if (abs(integral_angle_error) < 10){
+            integral_angle_error += angle_error;
+        }
+        
+        // Calculate derivatives
+        derivative_x_error = x_error - previous_x_error;
+        derivative_angle_error = angle_error - previous_angle_error;
+    
+        x_velocity = x_k_p * x_error + x_k_i * integral_x_error + x_k_d * derivative_x_error;
+        angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
+    
+        if (x_velocity > 400){ x_velocity = 400;}
+        if (x_velocity < -400){ x_velocity = -400;}
+    
+        if (angular_velocity > 50){ angular_velocity = 50;}
+        if (angular_velocity < -50){ angular_velocity = -50;}
+    
+        // Calculate control outputs
+        theta_dot_1 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
+        theta_dot_2 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
+        theta_dot_3 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
+        theta_dot_4 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
+    
+        // Send angular velocities of wheels to robot servo motor
+        left_front_motor.writeMicroseconds(1500 - theta_dot_1);
+        right_front_motor.writeMicroseconds(1500 + theta_dot_2);
+        left_rear_motor.writeMicroseconds(1500 - theta_dot_3);
+        right_rear_motor.writeMicroseconds(1500 + theta_dot_4);
+        
+        // Update previous error values
+        previous_x_error = x_error;
+        previous_angle_error = angle_error;
+
+        //Exit conditions
+        bool xExit = false; 
+    
+        if (abs(x_error)<5 && averagePhototransistorRead > 100){
+            xExit = true;
+        }
+
+         if (abs(x_error)<8 || read_IR(IR_Front_Left) < 8 || read_IR(IR_Front_Right) < 8){
+            if(averagePhototransistorRead < 40){
+                stop();
+                return AVOID_OBSTACLE;
+            }
+         }
+    
+        if (xExit){
+          count++;
+        }
+         
+        if (count > 5){
+            stop();
+            currentAngle = 0; 
+            return FIGHT_FIRE;
+        }
+        if (!xExit){
+            count = 0;
+        }
+
+        delay(100);
+    }
+    
 
     return FIGHT_FIRE;
 }
 
 STATE avoid_obstacle() {
-    return NULL;
+    
+    stop();
+    obstacle_avoidance_check();
+
+    while (_frontLeft || _frontRight || _ultrasonic || _left || _right){
+
+        obstacle_avoidance_check();
+        //Obstacle on Front Left
+        if (_frontLeft && !_frontRight && !_left && !_right){
+            while (read_IR(IR_Front_Left) < 5){
+                strafe_right(); //Needs to be a bit longer
+                }
+            delay(400);
+            stop();
+            forward();
+            delay(1500); //Not quite far enough
+            stop();
+        }    
+
+        obstacle_avoidance_check();
+        //Obstacle on Front Right
+        if (_frontRight && !_frontLeft && !_left && !_right){
+            while (read_IR(IR_Front_Right) < 5){
+                strafe_left();
+                }
+            delay(400);
+            stop();
+            forward();
+            delay(1500);
+            stop();
+        }
+
+        obstacle_avoidance_check();
+        //Obstacle directly in front
+        if (_ultrasonic && !_left && !_right){
+            while (read_IR(IR_Front_Left) < 5 && ultrasonic() < 5){
+                strafe_right();
+                }
+            delay(400);
+            stop();
+            forward();
+            delay(1500);
+            stop();
+        }  
+
+        obstacle_avoidance_check();
+        //In Left Corner
+        if (_left && _frontLeft){
+            myservo.write(85);  
+            int desiredAngle = turn(360);
+            desiredAngle -= (desiredAngle > 180) ? 360 : 0;
+            int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
+        }
+
+        obstacle_avoidance_check();
+        //In Right Corner
+        if (_right && _frontRight){
+            myservo.write(85); 
+            int desiredAngle = turn(360);
+            desiredAngle -= (desiredAngle > 180) ? 360 : 0;
+            int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
+        }
+        obstacle_avoidance_check();
+    }
+    return TRAVEL_TO_FIRE;
 }
 
 STATE fight_fire() {
@@ -279,7 +469,7 @@ int turn(float angleDesired) {
         delay(100);
         Serial.println(currentAngle);
 
-        currentAngle = read_gyro_current_angle() - (angleDesired < 0 ? 360 : 0);
+        currentAngle = read_gyro_current_angle() - (angleDesired < 0 && currentAngle > 180 ? 360 : 0);
         _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
         currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
 
@@ -312,211 +502,6 @@ int turn(float angleDesired) {
             return desiredAngle;
         }
     }
-}
-
-void straight() {
-
-    currentAngle=0; // Reset the global current angle
-    averagePhototransistorRead = 0;  // Reset the global phototransistor reading
-    maxPhototransistorRead = 0; // Reset the global phototransistor maximum
-
-    float currentAngleMove=0;     
-    float x_error = 0, angle_error = 0;
-    float x_velocity = 0, angular_velocity = 0;
-    float x_k_p = 20, x_k_i = 0.5, x_k_d = 1.002;
-    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001; 
-    float previous_x_error = 0, previous_angle_error = 0, integral_x_error = 0;
-    float integral_angle_error = 0, derivative_x_error = 0, derivative_angle_error = 0;
-    float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
-    float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
-    float x_distance_input = 100;
- 
-    int count = 0;
-    int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
-    int servoAngle = 0;
-    int angleDesired = findLight();
-    angleDesired -= (angleDesired > 180) ? 360 : 0;
-    myservo.write(85);
-    int _ = turn(angleDesired);
-    servoAngle = 85;
-       
-    while (true) {
-
-        currentAngle = read_gyro_current_angle();
-        x_distance_input = ultrasonic();
-
-        currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4; 
-        if (averagePhototransistorRead < 40){
-            
-        }
-        else{
-        servoAngle+=findLightDirection();
-
-        myservo.write(servoAngle);
-
-        angleDesired = 86 - servoAngle;
-        }
-        
-        // Calculate errors // 
-        //////////////////////////////////////
-        x_error = xDistanceDesired - x_distance_input;
-        if (x_error > 200){
-            x_error = 200;
-        }
-        if (x_error < -200){
-            x_error = -200;
-        }
-    
-        angle_error = angleDesired - currentAngleMove;
-        if (angle_error > 90){
-            angle_error = 90;
-        }
-        if (angle_error < -90){
-            angle_error = -90;
-        }
-    
-        if (abs(integral_x_error) < 50){
-            integral_x_error += x_error;
-        }
-    
-        if (abs(integral_angle_error) < 10){
-            integral_angle_error += angle_error;
-        }
-        
-        // Calculate derivatives
-        derivative_x_error = x_error - previous_x_error;
-        derivative_angle_error = angle_error - previous_angle_error;
-    
-        x_velocity = x_k_p * x_error + x_k_i * integral_x_error + x_k_d * derivative_x_error;
-        angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
-    
-        if (x_velocity > 600){ x_velocity = 600;}
-        if (x_velocity < -600){ x_velocity = -600;}
-    
-        if (angular_velocity > 50){ angular_velocity = 50;}
-        if (angular_velocity < -50){ angular_velocity = -50;}
-    
-        // Calculate control outputs
-        theta_dot_1 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
-        theta_dot_2 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
-        theta_dot_3 = ( 1 / radius ) * (x_velocity - (angular_velocity*(length+width)));
-        theta_dot_4 = ( 1 / radius ) * (x_velocity + (angular_velocity*(length+width)));
-    
-        // Send angular velocities of wheels to robot servo motor
-        left_front_motor.writeMicroseconds(1500 - theta_dot_1);
-        right_front_motor.writeMicroseconds(1500 + theta_dot_2);
-        left_rear_motor.writeMicroseconds(1500 - theta_dot_3);
-        right_rear_motor.writeMicroseconds(1500 + theta_dot_4);
-        
-        // Update previous error values
-        previous_x_error = x_error;
-        previous_angle_error = angle_error;
-
-        //Exit conditions
-        bool xExit = false; 
-    
-        if (abs(x_error)<5 && averagePhototransistorRead > 100){
-            xExit = true;
-        }
-
-         if (abs(x_error)<5 || read_IR(IR_Front_Left) < 5 || read_IR(IR_Front_Right) < 5){
-            if(averagePhototransistorRead < 40){
-                stop();
-                obstacle_Avoidance();
-            }
-         }
-    
-        if (xExit){
-          count++;
-        }
-         
-        if (count > 5){
-            stop();
-            currentAngle = 0; 
-            return;
-        }
-        if (!xExit){
-            count = 0;
-        }
-
-        delay(100);
-    }
-
-}
-
-void obstacle_Avoidance(){
-
-    stop();
-    obstacle_avoidance_check();
-
-    while (_frontLeft || _frontRight || _ultrasonic || _left || _right){
-
-        obstacle_avoidance_check();
-        //Obstacle on Front Left
-        if (_frontLeft && !_frontRight && !_left && !_right){
-            while (read_IR(IR_Front_Left) < 5){
-                strafe_right(); //Needs to be a bit longer
-                }
-            stop();
-            forward();
-            delay(1500); //Not quite far enough
-            stop();
-            strafe_left();
-            delay(1000);
-            stop();
-        }    
-
-        obstacle_avoidance_check();
-        //Obstacle on Front Right
-        if (_frontRight && !_frontLeft && !_left && !_right){
-            while (read_IR(IR_Front_Right) < 5){
-                strafe_left();
-                }
-            stop();
-            forward();
-            delay(1500);
-            stop();
-            strafe_right();
-            delay(1000);
-            stop();
-        }
-
-        obstacle_avoidance_check();
-        //Obstacle directly in front
-        if (_ultrasonic && !_left && !_right){
-            while (read_IR(IR_Front_Left) < 5 && ultrasonic() < 5){
-                strafe_right();
-                }
-            stop();
-            forward();
-            delay(1500);
-            stop();
-            strafe_left();
-            delay(1000);
-            stop();
-        }  
-
-        obstacle_avoidance_check();
-        //In Left Corner
-        if (_left && _frontLeft){
-            myservo.write(85);  
-            int desiredAngle = turn(360);
-            desiredAngle -= (desiredAngle > 180) ? 360 : 0;
-            int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
-        }
-
-        obstacle_avoidance_check();
-        //In Right Corner
-        if (_right && _frontRight){
-            myservo.write(85); 
-            int desiredAngle = turn(360);
-            desiredAngle -= (desiredAngle > 180) ? 360 : 0;
-            int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
-        }
-        obstacle_avoidance_check();
-    }
-    return;
 }
 
 
@@ -671,7 +656,7 @@ float read_IR(uint8_t Sensor) {
 }
 
 float phototransistor(uint8_t Sensor){
-    int iterations = 5;
+    int iterations = 10;
     int count = 0;
     long brightness = 0;
     while (count < iterations){
