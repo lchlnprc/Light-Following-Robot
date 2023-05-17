@@ -138,28 +138,28 @@ void setup(void) {
 
 void loop(void)  
 {
-    static STATE machine_state = INITIALISING;
-    //Finite-state machine Code
-    switch (machine_state) {
-        case INITIALISING:
-            machine_state = initialising();
-            break;
-        case FIND_CLOSEST_FIRE:  //Lipo Battery Volage OK
-            machine_state = find_closest_fire();
-            break;
-        case TRAVEL_TO_FIRE:  //Lipo Battery Volage OK
-            machine_state = travel_to_fire();
-            break;  
-        case AVOID_OBSTACLE:  //Lipo Battery Volage OK
-            machine_state = avoid_obstacle();
-            break;  
-        case FIGHT_FIRE:  //Lipo Battery Volage OK
-            machine_state = fight_fire();
-            break; 
-        case STOPPED:  //Lipo Battery Volage OK
-            machine_state = stopped();
-            break;  
-    };
+     static STATE machine_state = INITIALISING;
+     //Finite-state machine Code
+     switch (machine_state) {
+         case INITIALISING:
+             machine_state = initialising();
+             break;
+         case FIND_CLOSEST_FIRE:  //Lipo Battery Volage OK
+             machine_state = find_closest_fire();
+             break;
+         case TRAVEL_TO_FIRE:  //Lipo Battery Volage OK
+             machine_state = travel_to_fire();
+             break;  
+         case AVOID_OBSTACLE:  //Lipo Battery Volage OK
+             machine_state = avoid_obstacle();
+             break;  
+         case FIGHT_FIRE:  //Lipo Battery Volage OK
+             machine_state = fight_fire();
+             break; 
+         case STOPPED:  //Lipo Battery Volage OK
+             machine_state = stopped();
+             break;  
+     };
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -456,14 +456,14 @@ void obstacle_Avoidance(){
         //Obstacle on Front Left
         if (_frontLeft && !_frontRight && !_left && !_right){
             while (read_IR(IR_Front_Left) < 5){
-                strafe_right();
+                strafe_right(); //Needs to be a bit longer
                 }
             stop();
             forward();
-            delay(10000);
+            delay(1500); //Not quite far enough
             stop();
             strafe_left();
-            delay(10000);
+            delay(1000);
             stop();
         }    
 
@@ -471,29 +471,29 @@ void obstacle_Avoidance(){
         //Obstacle on Front Right
         if (_frontRight && !_frontLeft && !_left && !_right){
             while (read_IR(IR_Front_Right) < 5){
-                strafe_right();
+                strafe_left();
                 }
             stop();
             forward();
-            delay(10000);
+            delay(1500);
             stop();
             strafe_right();
-            delay(10000);
+            delay(1000);
             stop();
         }
 
         obstacle_avoidance_check();
         //Obstacle directly in front
         if (_ultrasonic && !_left && !_right){
-            while (read_IR(IR_Front_Left) < 5){
+            while (read_IR(IR_Front_Left) < 5 && ultrasonic() < 5){
                 strafe_right();
                 }
             stop();
             forward();
-            delay(10000);
+            delay(1500);
             stop();
             strafe_left();
-            delay(10000);
+            delay(1000);
             stop();
         }  
 
@@ -521,7 +521,7 @@ void obstacle_Avoidance(){
 
 
 void obstacle_avoidance_check(){
-    int _obstacleTolerance = 5;
+    int _obstacleTolerance = 8;
 
     _frontLeft = (read_IR(IR_Front_Left) < _obstacleTolerance) ? true : false;
     _frontRight = (read_IR(IR_Front_Right) < _obstacleTolerance) ? true : false;
@@ -642,8 +642,17 @@ float read_gyro_current_angle() {
 
 float read_IR(uint8_t Sensor) {
     
-    float distance_measurement;
-    float sensorMeasurement = analogRead(Sensor) * (5.0 / 1023.0); // Reading sensor value and converting it to voltage
+    float distance_measurement = 0;
+    float sensorMeasurementTotal = 0;
+    int i = 0;
+
+    int _iterations = 4;
+    while (i < _iterations){
+        sensorMeasurementTotal += analogRead(Sensor) * (5.0 / 1023.0); // Reading sensor value and converting it to voltage
+        i++;
+    }
+    
+    float sensorMeasurement = sensorMeasurementTotal / _iterations;
     
     if(Sensor == IR_Front_Left){
         distance_measurement = 8.05 * pow(sensorMeasurement, -1.93);
