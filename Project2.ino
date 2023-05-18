@@ -194,7 +194,7 @@ STATE find_closest_fire() {
 }
 
 STATE travel_to_fire() {
-
+    stop();
     currentAngle=0; // Reset the global current angle
     averagePhototransistorRead = 0;  // Reset the global phototransistor reading
     maxPhototransistorRead = 0; // Reset the global phototransistor maximum
@@ -214,6 +214,7 @@ STATE travel_to_fire() {
     int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
     int servoAngle = 0;
     int angleDesired = findLight();
+    int _noFireCheck = 0;
     angleDesired -= (angleDesired > 180) ? 360 : 0;
     myservo.write(85);
     int _ = turn(angleDesired);
@@ -226,15 +227,20 @@ STATE travel_to_fire() {
 
         currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4; 
-        if (averagePhototransistorRead < 40){
-            
+        if (averagePhototransistorRead < 1){
+            _noFireCheck++;
         }
         else{
+        _noFireCheck = 0;
         servoAngle+=findLightDirection();
 
         myservo.write(servoAngle);
 
         angleDesired = 86 - servoAngle;
+        }
+
+        if(_noFireCheck > 100){
+          return TRAVEL_TO_FIRE;
         }
         
         // Calculate errors // 
@@ -656,7 +662,7 @@ float read_IR(uint8_t Sensor) {
 }
 
 float phototransistor(uint8_t Sensor){
-    int iterations = 10;
+    int iterations = 5;
     int count = 0;
     long brightness = 0;
     while (count < iterations){
