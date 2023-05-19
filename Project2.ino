@@ -138,28 +138,28 @@ void setup(void) {
 
 void loop(void)  
 {
-     static STATE machine_state = INITIALISING;
-     //Finite-state machine Code
-     switch (machine_state) {
-         case INITIALISING:
-             machine_state = initialising();
-             break;
-         case FIND_CLOSEST_FIRE:  //Lipo Battery Volage OK
-             machine_state = find_closest_fire();
-             break;
-         case TRAVEL_TO_FIRE:  //Lipo Battery Volage OK
-             machine_state = travel_to_fire();
-             break;  
-         case AVOID_OBSTACLE:  //Lipo Battery Volage OK
-             machine_state = avoid_obstacle();
-             break;  
-         case FIGHT_FIRE:  //Lipo Battery Volage OK
-             machine_state = fight_fire();
-             break; 
-         case STOPPED:  //Lipo Battery Volage OK
-             machine_state = stopped();
-             break;  
-     };
+    static STATE machine_state = INITIALISING;
+    //Finite-state machine Code
+    switch (machine_state) {
+        case INITIALISING:
+            machine_state = initialising();
+            break;
+        case FIND_CLOSEST_FIRE:  //Lipo Battery Volage OK
+            machine_state = find_closest_fire();
+            break;
+        case TRAVEL_TO_FIRE:  //Lipo Battery Volage OK
+            machine_state = travel_to_fire();
+            break;  
+        case AVOID_OBSTACLE:  //Lipo Battery Volage OK
+            machine_state = avoid_obstacle();
+            break;  
+        case FIGHT_FIRE:  //Lipo Battery Volage OK
+            machine_state = fight_fire();
+            break; 
+        case STOPPED:  //Lipo Battery Volage OK
+            machine_state = stopped();
+            break;  
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -171,15 +171,17 @@ STATE initialising() {
     SerialCom->println("Enabling Motors...");
     enable_motors();
     SerialCom->println("RUNNING STATE...");
-    return FIND_CLOSEST_FIRE;
+    return TRAVEL_TO_FIRE;
 }
 
 STATE find_closest_fire() {
+    averagePhototransistorRead = 0;  // Reset the global phototransistor reading
+    maxPhototransistorRead = 0; // Reset the global phototransistor maximum
 
     int angle = 0;
     maxPhototransistorRead = 0;
 
-    myservo.write(85);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
+    myservo.write(80);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
 
     int desiredAngle = turn(360);
 
@@ -216,9 +218,12 @@ STATE travel_to_fire() {
     int angleDesired = findLight();
     int _noFireCheck = 0;
     angleDesired -= (angleDesired > 180) ? 360 : 0;
-    myservo.write(85);
+    myservo.write(80);
     int _ = turn(angleDesired);
-    servoAngle = 85;
+    servoAngle = 80;
+
+    currentAngleMove=0; 
+    currentAngle = 0;
        
     while (true) {
 
@@ -226,7 +231,13 @@ STATE travel_to_fire() {
         x_distance_input = ultrasonic();
 
         currentAngle > 180 ? currentAngleMove = currentAngle - 360 :  currentAngleMove = currentAngle;
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4; 
+        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        if (ultrasonic() < 8 || read_IR(IR_Front_Left) < 8 || read_IR(IR_Front_Right) < 8 || read_IR(IR_Left) < 3 || read_IR(IR_Right) < 3){
+            if(averagePhototransistorRead < 100){
+                stop();
+                return AVOID_OBSTACLE;
+            }
+        } 
         if (averagePhototransistorRead < 1){
             _noFireCheck++;
         }
@@ -236,10 +247,10 @@ STATE travel_to_fire() {
 
         myservo.write(servoAngle);
 
-        angleDesired = 86 - servoAngle;
+        angleDesired = 85 - servoAngle;
         }
 
-        if(_noFireCheck > 100){
+        if(_noFireCheck > 10){
           return TRAVEL_TO_FIRE;
         }
         
@@ -301,16 +312,9 @@ STATE travel_to_fire() {
         //Exit conditions
         bool xExit = false; 
     
-        if (abs(x_error)<5 && averagePhototransistorRead > 100){
+        if (abs(x_error)<5 && averagePhototransistorRead > 130){
             xExit = true;
         }
-
-         if (abs(x_error)<8 || read_IR(IR_Front_Left) < 8 || read_IR(IR_Front_Right) < 8){
-            if(averagePhototransistorRead < 40){
-                stop();
-                return AVOID_OBSTACLE;
-            }
-         }
     
         if (xExit){
           count++;
@@ -345,10 +349,10 @@ STATE avoid_obstacle() {
             while (read_IR(IR_Front_Left) < 5){
                 strafe_right(); //Needs to be a bit longer
                 }
-            delay(400);
+            delay(1000);
             stop();
             forward();
-            delay(1500); //Not quite far enough
+            delay(1000); //Not quite far enough
             stop();
         }    
 
@@ -358,10 +362,10 @@ STATE avoid_obstacle() {
             while (read_IR(IR_Front_Right) < 5){
                 strafe_left();
                 }
-            delay(400);
+            delay(1000);
             stop();
             forward();
-            delay(1500);
+            delay(1000);
             stop();
         }
 
@@ -371,7 +375,7 @@ STATE avoid_obstacle() {
             while (read_IR(IR_Front_Left) < 5 && ultrasonic() < 5){
                 strafe_right();
                 }
-            delay(400);
+            delay(1000);
             stop();
             forward();
             delay(1500);
@@ -381,7 +385,7 @@ STATE avoid_obstacle() {
         obstacle_avoidance_check();
         //In Left Corner
         if (_left && _frontLeft){
-            myservo.write(85);  
+            myservo.write(80);  
             int desiredAngle = turn(360);
             desiredAngle -= (desiredAngle > 180) ? 360 : 0;
             int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
@@ -390,7 +394,7 @@ STATE avoid_obstacle() {
         obstacle_avoidance_check();
         //In Right Corner
         if (_right && _frontRight){
-            myservo.write(85); 
+            myservo.write(80); 
             int desiredAngle = turn(360);
             desiredAngle -= (desiredAngle > 180) ? 360 : 0;
             int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
@@ -413,6 +417,7 @@ STATE fight_fire() {
     while(averagePhototransistorRead > 100){
         averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
     }
+    delay(50);
     //Light should now be out
     digitalWrite(fanPin, LOW);  // turn on the fan
 
@@ -473,7 +478,6 @@ int turn(float angleDesired) {
 
     while (true) {
         delay(100);
-        Serial.println(currentAngle);
 
         currentAngle = read_gyro_current_angle() - (angleDesired < 0 && currentAngle > 180 ? 360 : 0);
         _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
@@ -540,7 +544,7 @@ int findLight(){
         delay(20);
     }
     myservo.write(angleDesired);
-    return (87 - angleDesired);
+    return (90 - angleDesired);
 }
 
 int findLightDirection() {
@@ -556,13 +560,22 @@ int findLightDirection() {
 
     int leftBrightness = totalLeftBrightness / numReadings;
     int rightBrightness = totalRightBrightness / numReadings;
+    Serial.print("Left: ");
+    Serial.println(leftBrightness);
+    Serial.print("right: ");
+    Serial.println(rightBrightness);
+
+    int gain_max = 10;
+    if (leftBrightness > 100 || rightBrightness > 100){
+        gain_max = 1;
+    }
 
     int difference = leftBrightness - rightBrightness;
     int direction = (difference > 0) - (difference < 0); // 1 if left is brighter, -1 if right is brighter, 0 if equal
 
     // Take the absolute difference and scale it by some factor for a larger response
     // We use min to cap it at 15
-    int magnitude = min(abs(difference) * 0.1, 10.0);
+    int magnitude = min(abs(difference) * 0.1, gain_max);
 
     return direction * magnitude;
 }
