@@ -247,7 +247,7 @@ STATE travel_to_fire() {
 
         }
 
-        if(_noFireCheck > 10){
+        if(_noFireCheck > 100){
           return TRAVEL_TO_FIRE;
         }
         
@@ -263,10 +263,10 @@ STATE travel_to_fire() {
 
         y_error = 0;
         if (y_left < 8){
-            y_error = 70;
+            y_error = -70;
         }
         if (y_right < 8){
-            y_error = -70;
+            y_error = 70;
         }
     
         angle_error = -(new_servoAngle - old_servoAngle);
@@ -294,11 +294,11 @@ STATE travel_to_fire() {
             }
             if(x_ultrasonic < 8 || front_left < 8){
                 x_error = 0;
-                y_error = 80;
+                y_error = -80;
             }
             else if(front_right < 8){
                 x_error = 0;
-                y_error = -80;
+                y_error = 80;
             }      
         }
     
@@ -323,8 +323,8 @@ STATE travel_to_fire() {
         y_velocity = y_k_p * y_error + y_k_i * integral_y_error + y_k_d * derivative_y_error;
         angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
     
-        if (x_velocity > 400){ x_velocity = 400;}
-        if (x_velocity < -400){ x_velocity = -400;}
+        if (x_velocity > 600){ x_velocity = 600;}
+        if (x_velocity < -600){ x_velocity = -600;}
 
         if (y_velocity > 600){ y_velocity = 600;}
         if (y_velocity < -600){ y_velocity = -600;}
