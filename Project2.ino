@@ -12,7 +12,6 @@ enum STATE {
   INITIALISING,
   FIND_CLOSEST_FIRE,
   TRAVEL_TO_FIRE,
-  AVOID_OBSTACLE,
   FIGHT_FIRE,
   STOPPED
 };
@@ -47,18 +46,11 @@ SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 Servo myservo;  // create servo object to control a servo
 int pos = 0;    // variable to store the servo position
 int fanPin = 45;  // the digital output pin connected to the MOSFET's gate
-int sensorPin = A10;            //define the pin that gyro is connected
 int T = 100;                    // T is the time of one loop
 int sensorValue = 0;            // read out value of sensor
 int averagePhototransistorRead = 0;            //Defining the Global Ultrasonic Reading
 int maxPhototransistorRead = 0;                 //Definining Global Max Ultrasonic
 int firesExtinguished = 0;
-float gyroSupplyVoltage = 5;    // supply voltage for gyro
-float gyroZeroVoltage = 0;    // the value of voltage when gyro is zero
-float gyroSensitivity = 0.007;  // gyro sensitivity unit is (mv/degree/second) get from datasheet
-float rotationThreshold = 2;    // because of gyro drifting, defining rotation angular velocity  less than this value will not be ignored
-float gyroRate = 0;             // read out value of sensor in voltage
-volatile float currentAngle = 0;         // current angle calculated by angular velocity integral on
 byte serialRead = 0;  // for serial print control
 //Default motor control pins
 const byte left_front = 50;
@@ -108,25 +100,11 @@ void setup(void) {
     delay(1000);
     Serial.begin(9600);
     // this section is initialize the sensor, find the the value of voltage when gyro is zero
-    int i;
-    float sum = 0;
-    pinMode(sensorPin, INPUT);
     pinMode(fanPin, OUTPUT);
 
     myservo.attach(21);  // attaches the servo on pin 21 to the servo object
     
-    Serial.println("please keep the sensor still for calibration");
-    Serial.println("get the gyro zero voltage");
-    for (i = 0; i < 100; i++)  //  read 100 values of voltage when gyro is at still, to calculate the zero-drift
-    {
-      sensorValue = analogRead(sensorPin);
-      sum += sensorValue;
-      delay(5);
-    }
-    gyroZeroVoltage = sum / 100;  // average the sum as the zero drifting
-    
     //Ultrasonic Setup
-    
     pinMode(trigPin, OUTPUT);                          // Sets the trigPin as an OUTPUT
     pinMode(echoPin, INPUT);                           // Sets the echoPin as an INPUT
     
@@ -149,9 +127,6 @@ void loop(void)
             break;
         case TRAVEL_TO_FIRE:  //Lipo Battery Volage OK
             machine_state = travel_to_fire();
-            break;  
-        case AVOID_OBSTACLE:  //Lipo Battery Volage OK
-            machine_state = avoid_obstacle();
             break;  
         case FIGHT_FIRE:  //Lipo Battery Volage OK
             machine_state = fight_fire();
@@ -198,9 +173,9 @@ STATE find_closest_fire() {
 
 STATE travel_to_fire() {
     stop();
-    currentAngle=0; // Reset the global current angle
     averagePhototransistorRead = 0;  // Reset the global phototransistor reading
     maxPhototransistorRead = 0; // Reset the global phototransistor maximum
+    myservo.write(83);
 
     float currentAngleMove=0;     
     float x_error = 0, angle_error = 0, y_error = 0;
@@ -214,18 +189,13 @@ STATE travel_to_fire() {
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
     float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
     float x_ultrasonic = 0, y_left = 0, y_right = 0, front_left = 0, front_right = 0;
-    float _x_gain = 1;
+    float old_servoAngle = 80, new_servoAngle = 0, servoAngle = 0, xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
+
     int _noFireCheck = 0;
     int _fireCheck = 0;
     int count = 0;
-    float xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
-    float servoAngle = 0;
-    myservo.write(83);
-    float old_servoAngle = 80;
-    float new_servoAngle = 0;
        
     while (true) {
-        _x_gain = 1;
         x_ultrasonic = ultrasonic();
         y_left = read_IR(IR_Left);
         y_right = read_IR(IR_Right);
@@ -240,24 +210,19 @@ STATE travel_to_fire() {
             }
         }
         else{
-        _fireCheck++;
+            _fireCheck++;
 
-        if (_noFireCheck != 0 && _fireCheck > 10){
-            _noFireCheck = 0;
-        }
+            if (_noFireCheck != 0 && _fireCheck > 10){
+                _noFireCheck = 0;
+            }
 
-        new_servoAngle = old_servoAngle + findLightDirection();
-        myservo.write(new_servoAngle);
-
+            new_servoAngle = old_servoAngle + findLightDirection();
+            myservo.write(new_servoAngle);
         }
 
         if(_noFireCheck > 10){
             stop();
             return FIND_CLOSEST_FIRE;
-        }
-
-         if (averagePhototransistorRead > 100){
-          _x_gain = 0.1;
         }
         
         // Calculate errors // 
@@ -268,6 +233,10 @@ STATE travel_to_fire() {
         }
         if (x_error < -200){
             x_error = -200;
+        }
+
+        if (averagePhototransistorRead > 130){
+            x_error = x_error * 0.5; //<-------------------------- IDK IF THIS WILL WORK IT MADE IT KINDA JANKY BUT HAVENT TESTED YET
         }
 
         y_error = 0;
@@ -373,8 +342,7 @@ STATE travel_to_fire() {
         }
          
         if (count > 5){
-            stop();
-            currentAngle = 0; 
+            stop(); 
             return FIGHT_FIRE;
         }
         if (!xExit){
@@ -385,10 +353,6 @@ STATE travel_to_fire() {
     }
     
     return FIGHT_FIRE;
-}
-
-STATE avoid_obstacle() {
-    return TRAVEL_TO_FIRE;
 }
 
 STATE fight_fire() {
@@ -451,89 +415,6 @@ STATE stopped() {
   return STOPPED;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////CLOSED LOOP CONTROLS
-
-int turn(float angleDesired) {
-    float angle_k_p = 4, angle_k_i = 0.0, angle_k_d = 0.0001;
-    float radius = 2.6, length = 8.5, width = 9.2;
-    float angle_error, previous_angle_error = 0, integral_angle_error = 0, derivative_angle_error;
-    float angular_velocity;
-    int count = 0, currentAngleMove, desiredAngle;
-    bool _overflowTrigger = false;
-    currentAngle = 0;
-
-    while (true) {
-        delay(100);
-
-        currentAngle = read_gyro_current_angle() - (angleDesired < 0 && currentAngle > 180 ? 360 : 0);
-        _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
-        currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
-
-        averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > maxPhototransistorRead){
-            maxPhototransistorRead = averagePhototransistorRead;
-            desiredAngle = currentAngle;
-        }
-
-        angle_error = constrain(angleDesired - currentAngle, -90, 90);
-    
-        integral_angle_error += (abs(integral_angle_error) < 10 ? angle_error : 0);
-    
-        derivative_angle_error = angle_error - previous_angle_error;
-        angular_velocity = constrain(angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error, -20, 20);
-    
-        float theta_dot_common = (1 / radius) * (angular_velocity * (length + width));
-        float theta_dots[4] = {-theta_dot_common, theta_dot_common, -theta_dot_common, theta_dot_common};
-    
-        left_front_motor.writeMicroseconds(1500 - theta_dots[0]);
-        right_front_motor.writeMicroseconds(1500 + theta_dots[1]);
-        left_rear_motor.writeMicroseconds(1500 - theta_dots[2]);
-        right_rear_motor.writeMicroseconds(1500 + theta_dots[3]);
-    
-        previous_angle_error = angle_error;
-    
-        count = (abs(angle_error) < 5 ? count + 1 : 0);
-
-        if (count > 5) {
-            return desiredAngle;
-        }
-    }
-}
-
-
-void obstacle_avoidance_check(){
-    int _obstacleTolerance = 8;
-
-    _frontLeft = (read_IR(IR_Front_Left) < _obstacleTolerance) ? true : false;
-    _frontRight = (read_IR(IR_Front_Right) < _obstacleTolerance) ? true : false;
-    _ultrasonic = (ultrasonic() < _obstacleTolerance) ? true : false;
-    _left = (read_IR(IR_Left) < _obstacleTolerance) ? true : false;
-    _right = (read_IR(IR_Right) < _obstacleTolerance)? true : false;
-}
-
-
-int findLight(){
-
-    myservo.write(0);  // tell servo to go to position in variable 'pos'
-    int angleDesired;
-    int angle = 0;
-
-    while (angle < 180){
-        myservo.write(angle);
-
-        averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > maxPhototransistorRead){
-            maxPhototransistorRead = averagePhototransistorRead;
-            angleDesired = angle;
-        }
-        angle++;
-        delay(20);
-    }
-    myservo.write(angleDesired);
-    return (90 - angleDesired);
-}
-
 int findLightDirection() {
     const int numReadings = 10; // Number of readings to take
     int totalLeftBrightness = 0;
@@ -581,51 +462,6 @@ float ultrasonic() {  //<------------------------------------------------ Ultras
     return measurement;
 }
 
-float read_gyro_current_angle() {
-   
-    if (Serial.available())  // Check for input from terminal
-    {
-        serialRead = Serial.read();  // Read input
-        if (serialRead == 49)        // Check for flag to execute, 49 is asci for 1
-        {
-            Serial.end();  // end the serial communication to display the sensor data on monitor
-        }
-    }
-    
-    // convert the 0-1023 signal to 0-5v
-    
-    gyroRate = (analogRead(sensorPin)) * gyroSupplyVoltage / 1023;
-    
-    // find the voltage offset the value of voltage when gyro is zero (still)
-    gyroRate -= (gyroZeroVoltage / 1023 * 5);
-    
-    // read out voltage divided the gyro sensitivity to calculate the angular velocity
-    float angularVelocity = gyroRate / gyroSensitivity;
-    
-    if (abs(gyroRate)>1){
-        gyroRate=0;
-    }
-    // if the angular velocity is less than the threshold, ignore it
-    if ((angularVelocity >= rotationThreshold) || (angularVelocity <= -rotationThreshold)) {
-        //SerialCom->println(angularVelocity);
-        // we are running a loop in T. one second will run (1000/T).
-        float angleChange = angularVelocity / (1000 / T);
-        if (abs(angleChange)>10){
-            angleChange=0;
-        }
-        currentAngle += angleChange;
-        //Serial.println(angleChange);
-    }
-    
-      // keep the angle between 0-360
-    if (currentAngle < 0) {
-        currentAngle += 360;
-    } else if (currentAngle > 359) {
-        currentAngle -= 360;
-    }
-
-    return (currentAngle);
-}
 
 float read_IR(uint8_t Sensor) {
     
