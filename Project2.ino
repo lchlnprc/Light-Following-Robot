@@ -218,18 +218,17 @@ STATE travel_to_fire() {
     int _noFireCheck = 0;
     int _fireCheck = 0;
     int count = 0;
-    int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
-    int servoAngle = 0;
+    float xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
+    float servoAngle = 0;
     myservo.write(83);
-    int old_servoAngle = 80;
-    int new_servoAngle = 0;
+    float old_servoAngle = 80;
+    float new_servoAngle = 0;
        
     while (true) {
         _x_gain = 1;
         x_ultrasonic = ultrasonic();
         y_left = read_IR(IR_Left);
         y_right = read_IR(IR_Right);
-        Serial.println(y_right);
         front_left = read_IR(IR_Front_Left);
         front_right = read_IR(IR_Front_Right);
         averagePhototransistorRead = averagePhototransistor();
@@ -263,7 +262,7 @@ STATE travel_to_fire() {
         
         // Calculate errors // 
         //////////////////////////////////////
-        x_error = (xDistanceDesired - x_ultrasonic)*_x_gain;
+        x_error = (xDistanceDesired - x_ultrasonic);
         if (x_error > 200){
             x_error = 200;
         }
@@ -333,8 +332,8 @@ STATE travel_to_fire() {
         y_velocity = y_k_p * y_error + y_k_i * integral_y_error + y_k_d * derivative_y_error;
         angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
     
-        if (x_velocity > 700){ x_velocity = 700;}
-        if (x_velocity < -700){ x_velocity = -700;}
+        if (x_velocity > 600){ x_velocity = 600;}
+        if (x_velocity < -600){ x_velocity = -600;}
 
         if (y_velocity > 600){ y_velocity = 600;}
         if (y_velocity < -600){ y_velocity = -600;}
