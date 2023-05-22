@@ -171,26 +171,27 @@ STATE initialising() {
     SerialCom->println("Enabling Motors...");
     enable_motors();
     SerialCom->println("RUNNING STATE...");
-    return TRAVEL_TO_FIRE;
+    return FIND_CLOSEST_FIRE;
 }
 
 STATE find_closest_fire() {
+    myservo.write(83);
     averagePhototransistorRead = 0;  // Reset the global phototransistor reading
     maxPhototransistorRead = 0; // Reset the global phototransistor maximum
+    int _brightnessCount = 0;
+    int _direction = findLightDirection();
 
-    int angle = 0;
-    maxPhototransistorRead = 0;
+    if (_direction >= 0) {
+        ccw();
+    } else {
+        cw();
+    }
 
-    myservo.write(80);  // NEED TO FIGURE OUT WHERE SERVO IS SQUARE WITH ROBOT
-
-    int desiredAngle = turn(360);
-
-    desiredAngle -= (desiredAngle > 180) ? 360 : 0;
-
-    int _ = turn(desiredAngle); //SHOULD NOW BE FACING CLOSEST FIRE
-
-    averagePhototransistorRead = 0; //Reset Global Phototransistor Values
-    maxPhototransistorRead = 0;
+    while (_brightnessCount < 100){
+        averagePhototransistorRead = averagePhototransistor();
+        if (averagePhototransistorRead > 10){_brightnessCount++;}
+    }
+    stop();
 
     return TRAVEL_TO_FIRE;
 }
@@ -213,20 +214,14 @@ STATE travel_to_fire() {
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
     float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
     float x_ultrasonic = 0, y_left = 0, y_right = 0, front_left = 0, front_right = 0;
- 
+    int _noFireCheck = 0;
+    int _fireCheck = 0;
     int count = 0;
     int xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
     int servoAngle = 0;
-    int angleDesired = findLight();
-    int _noFireCheck = 0;
-    angleDesired -= (angleDesired > 180) ? 360 : 0;
-    myservo.write(80);
-    int _ = turn(angleDesired);
+    myservo.write(83);
     int old_servoAngle = 80;
     int new_servoAngle = 0;
-
-    currentAngleMove=0; 
-    currentAngle = 0;
        
     while (true) {
         x_ultrasonic = ultrasonic();
@@ -234,21 +229,46 @@ STATE travel_to_fire() {
         y_right = read_IR(IR_Right);
         front_left = read_IR(IR_Front_Left);
         front_right = read_IR(IR_Front_Right);
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        averagePhototransistorRead = averagePhototransistor();
 
         if (averagePhototransistorRead < 1){
             _noFireCheck++;
+            if (_fireCheck != 0 && _noFireCheck > 10){
+                _fireCheck = 0;
+            }
         }
         else{
-        _noFireCheck = 0;
-        new_servoAngle = old_servoAngle + findLightDirection();
+        _fireCheck++;
 
+        if (_noFireCheck != 0 && _fireCheck > 10){
+            _noFireCheck = 0;
+        }
+
+        new_servoAngle = old_servoAngle + findLightDirection();
         myservo.write(new_servoAngle);
 
         }
 
         if(_noFireCheck > 100){
-          return TRAVEL_TO_FIRE;
+            stop();
+            int _brightnessCount = 0;
+            int _servoAngle = 0;
+            while (_servoAngle < 179){
+                myservo.write(_servoAngle);
+                averagePhototransistorRead = averagePhototransistor();
+                if (averagePhototransistorRead > 10){
+                    _brightnessCount++;
+                }
+                if (_brightnessCount > 10){
+                    new_servoAngle = _servoAngle;
+                    servoAngle = 180;
+                }
+                else if (_brightnessCount < 10 && _servoAngle > 177){
+                    return TRAVEL_TO_FIRE;
+                }
+                _servoAngle++;
+                delay(10);
+            }
         }
         
         // Calculate errors // 
@@ -369,7 +389,7 @@ STATE travel_to_fire() {
         if (!xExit){
             count = 0;
         }
-        delay(10);
+        delay(100);
 
     }
     
@@ -382,7 +402,7 @@ STATE avoid_obstacle() {
 
 STATE fight_fire() {
 
-    averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+    averagePhototransistorRead = averagePhototransistor();
     
     if (averagePhototransistorRead < 100){ //Should implement a count average here of some sort to prevent false readings. 
         return FIND_CLOSEST_FIRE;
@@ -391,9 +411,9 @@ STATE fight_fire() {
     digitalWrite(fanPin, HIGH);  // turn on the fan 
 
     while(averagePhototransistorRead > 100){
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        averagePhototransistorRead = averagePhototransistor();
     }
-    delay(50);
+    delay(500);
     //Light should now be out
     digitalWrite(fanPin, LOW);  // turn on the fan
 
@@ -459,7 +479,7 @@ int turn(float angleDesired) {
         _overflowTrigger = (angleDesired > 350 && currentAngle > 340 && currentAngle < 355) ? true : _overflowTrigger;
         currentAngle += (_overflowTrigger && currentAngle < 50 && currentAngle >= 0) ? 360 : 0;
 
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        averagePhototransistorRead = averagePhototransistor();
         if (averagePhototransistorRead > maxPhototransistorRead){
             maxPhototransistorRead = averagePhototransistorRead;
             desiredAngle = currentAngle;
@@ -511,7 +531,7 @@ int findLight(){
     while (angle < 180){
         myservo.write(angle);
 
-        averagePhototransistorRead = (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+        averagePhototransistorRead = averagePhototransistor();
         if (averagePhototransistorRead > maxPhototransistorRead){
             maxPhototransistorRead = averagePhototransistorRead;
             angleDesired = angle;
@@ -659,6 +679,10 @@ float phototransistor(uint8_t Sensor){
         count++;
     }
     return (brightness / iterations);
+}
+
+float averagePhototransistor(){
+    return (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
