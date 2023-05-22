@@ -171,7 +171,7 @@ STATE initialising() {
     SerialCom->println("Enabling Motors...");
     enable_motors();
     SerialCom->println("RUNNING STATE...");
-    return FIND_CLOSEST_FIRE;
+    return TRAVEL_TO_FIRE;
 }
 
 STATE find_closest_fire() {
@@ -187,7 +187,7 @@ STATE find_closest_fire() {
         cw();
     }
 
-    while (_brightnessCount < 100){
+    while (_brightnessCount < 200){
         averagePhototransistorRead = averagePhototransistor();
         if (averagePhototransistorRead > 10){_brightnessCount++;}
     }
@@ -214,6 +214,7 @@ STATE travel_to_fire() {
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
     float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
     float x_ultrasonic = 0, y_left = 0, y_right = 0, front_left = 0, front_right = 0;
+    float _x_gain = 1;
     int _noFireCheck = 0;
     int _fireCheck = 0;
     int count = 0;
@@ -224,16 +225,18 @@ STATE travel_to_fire() {
     int new_servoAngle = 0;
        
     while (true) {
+        _x_gain = 1;
         x_ultrasonic = ultrasonic();
         y_left = read_IR(IR_Left);
         y_right = read_IR(IR_Right);
+        Serial.println(y_right);
         front_left = read_IR(IR_Front_Left);
         front_right = read_IR(IR_Front_Right);
         averagePhototransistorRead = averagePhototransistor();
 
-        if (averagePhototransistorRead < 1){
+        if (averagePhototransistorRead < 10){
             _noFireCheck++;
-            if (_fireCheck != 0 && _noFireCheck > 10){
+            if (_noFireCheck > 2){
                 _fireCheck = 0;
             }
         }
@@ -249,31 +252,18 @@ STATE travel_to_fire() {
 
         }
 
-        if(_noFireCheck > 100){
+        if(_noFireCheck > 10){
             stop();
-            int _brightnessCount = 0;
-            int _servoAngle = 0;
-            while (_servoAngle < 179){
-                myservo.write(_servoAngle);
-                averagePhototransistorRead = averagePhototransistor();
-                if (averagePhototransistorRead > 10){
-                    _brightnessCount++;
-                }
-                if (_brightnessCount > 10){
-                    new_servoAngle = _servoAngle;
-                    servoAngle = 180;
-                }
-                else if (_brightnessCount < 10 && _servoAngle > 177){
-                    return TRAVEL_TO_FIRE;
-                }
-                _servoAngle++;
-                delay(10);
-            }
+            return FIND_CLOSEST_FIRE;
+        }
+
+         if (averagePhototransistorRead > 100){
+          _x_gain = 0.1;
         }
         
         // Calculate errors // 
         //////////////////////////////////////
-        x_error = xDistanceDesired - x_ultrasonic;
+        x_error = (xDistanceDesired - x_ultrasonic)*_x_gain;
         if (x_error > 200){
             x_error = 200;
         }
@@ -282,10 +272,10 @@ STATE travel_to_fire() {
         }
 
         y_error = 0;
-        if (y_left < 8){
+        if (y_left < 6){
             y_error = -70;
         }
-        if (y_right < 8){
+        if (y_right < 4){
             y_error = 70;
         }
     
@@ -343,8 +333,8 @@ STATE travel_to_fire() {
         y_velocity = y_k_p * y_error + y_k_i * integral_y_error + y_k_d * derivative_y_error;
         angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
     
-        if (x_velocity > 600){ x_velocity = 600;}
-        if (x_velocity < -600){ x_velocity = -600;}
+        if (x_velocity > 700){ x_velocity = 700;}
+        if (x_velocity < -700){ x_velocity = -700;}
 
         if (y_velocity > 600){ y_velocity = 600;}
         if (y_velocity < -600){ y_velocity = -600;}
@@ -373,8 +363,10 @@ STATE travel_to_fire() {
         //Exit conditions
         bool xExit = false; 
     
-        if (abs(x_error)<5 && averagePhototransistorRead > 130){
-            xExit = true;
+        if (averagePhototransistorRead > 130){
+            if (abs(x_error)<5 || read_IR(IR_Front_Right) < 7 || read_IR(IR_Front_Left) < 7){
+              xExit = true;
+            }
         }
     
         if (xExit){
@@ -556,14 +548,10 @@ int findLightDirection() {
 
     int leftBrightness = totalLeftBrightness / numReadings;
     int rightBrightness = totalRightBrightness / numReadings;
-    Serial.print("Left: ");
-    Serial.println(leftBrightness);
-    Serial.print("right: ");
-    Serial.println(rightBrightness);
 
     int gain_max = 10;
     if (leftBrightness > 100 || rightBrightness > 100){
-        gain_max = 1;
+        gain_max = 5;
     }
 
     int difference = leftBrightness - rightBrightness;
@@ -571,7 +559,7 @@ int findLightDirection() {
 
     // Take the absolute difference and scale it by some factor for a larger response
     // We use min to cap it at 15
-    int magnitude = min(abs(difference) * 0.1, gain_max);
+    int magnitude = min(abs(difference) * 0.5, gain_max);
 
     return direction * magnitude;
 }
