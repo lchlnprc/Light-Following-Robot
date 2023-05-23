@@ -224,6 +224,14 @@ STATE travel_to_fire() {
             stop();
             return FIND_CLOSEST_FIRE;
         }
+
+        if (new_servoAngle > 150 || new_servoAngle < 30){
+            stop();
+            reverse();
+            delay(500);
+            stop();
+            return FIND_CLOSEST_FIRE;
+        }
         
         // Calculate errors // 
         //////////////////////////////////////
