@@ -146,7 +146,7 @@ STATE initialising() {
     SerialCom->println("Enabling Motors...");
     enable_motors();
     SerialCom->println("RUNNING STATE...");
-    return TRAVEL_TO_FIRE;
+    return FIND_CLOSEST_FIRE;
 }
 
 STATE find_closest_fire() {
@@ -162,9 +162,9 @@ STATE find_closest_fire() {
         cw();
     }
 
-    while (_brightnessCount < 200){
+    while (_brightnessCount < 250){
         averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > 10){_brightnessCount++;}
+        if (averagePhototransistorRead > 5){_brightnessCount++;}
     }
     stop();
 
@@ -225,11 +225,10 @@ STATE travel_to_fire() {
             return FIND_CLOSEST_FIRE;
         }
 
-        if (new_servoAngle > 150 || new_servoAngle < 30){
+        if (new_servoAngle > 170 || new_servoAngle < 10){
             stop();
             reverse();
-            delay(500);
-            stop();
+            delay(400);
             return FIND_CLOSEST_FIRE;
         }
         
@@ -248,11 +247,14 @@ STATE travel_to_fire() {
         }
 
         y_error = 0;
-        if (y_left < 6){
-            y_error = -70;
+        if (y_left < 4){
+            y_error = -50;
         }
         if (y_right < 4){
-            y_error = 70;
+            y_error = 50;
+        }
+        if (y_right < 4 && y_left < 4){
+          y_error = 0;
         }
     
         angle_error = -(new_servoAngle - old_servoAngle);
@@ -280,11 +282,11 @@ STATE travel_to_fire() {
             }
             if(x_ultrasonic < 8 || front_left < 8){
                 x_error = 0;
-                y_error = -80;
+                y_error = -100;
             }
             else if(front_right < 8){
                 x_error = 0;
-                y_error = 80;
+                y_error = 100;
             }      
         }
     
@@ -340,7 +342,7 @@ STATE travel_to_fire() {
         bool xExit = false; 
     
         if (averagePhototransistorRead > 130){
-            if (abs(x_error)<5 || read_IR(IR_Front_Right) < 7 || read_IR(IR_Front_Left) < 7){
+            if (abs(x_error)<3 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
             }
         }
@@ -369,6 +371,17 @@ STATE fight_fire() {
     
     if (averagePhototransistorRead < 100){ //Should implement a count average here of some sort to prevent false readings. 
         return FIND_CLOSEST_FIRE;
+    }
+
+    int _brightnessCount = 0;
+    int new_servoAngle = 80;
+    int old_servoAngle = myservo.read();
+    while (_brightnessCount < 200){
+            new_servoAngle = old_servoAngle + findLightDirection();
+            myservo.write(new_servoAngle);
+            old_servoAngle = new_servoAngle;
+            _brightnessCount++;
+            delay(10);
     }
 
     digitalWrite(fanPin, HIGH);  // turn on the fan 
