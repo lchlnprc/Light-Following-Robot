@@ -252,10 +252,10 @@ STATE travel_to_fire() {
 
         y_error = 0;
         if (y_left < 8){
-            y_error = -50;
+            y_error = -30;
         }
         if (y_right < 8){
-            y_error = 50;
+            y_error = 30;
         }
         if (y_right < 8 && y_left < 8){
           y_error = 0;
@@ -377,7 +377,7 @@ STATE fight_fire() {
         return FIND_CLOSEST_FIRE;
     }
     forward();
-    delay(250);
+    delay(100);
     stop();
 
     int _brightnessCount = 0;
