@@ -189,7 +189,7 @@ STATE travel_to_fire() {
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
     float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
     float x_ultrasonic = 0, y_left = 0, y_right = 0, front_left = 0, front_right = 0;
-    float old_servoAngle = 80, new_servoAngle = 0, servoAngle = 0, xDistanceDesired = 3; //<------we could replace this with looking for brightness instead of distance? IDK
+    float old_servoAngle = 80, new_servoAngle = 0, servoAngle = 0, xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
 
     int _noFireCheck = 0;
     int _fireCheck = 0;
@@ -251,13 +251,13 @@ STATE travel_to_fire() {
         }
 
         y_error = 0;
-        if (y_left < 7){
+        if (y_left < 8){
             y_error = -50;
         }
-        if (y_right < 7){
+        if (y_right < 8){
             y_error = 50;
         }
-        if (y_right < 7 && y_left < 7){
+        if (y_right < 8 && y_left < 8){
           y_error = 0;
         }
     
@@ -370,12 +370,15 @@ STATE travel_to_fire() {
 }
 
 STATE fight_fire() {
-
+    
     averagePhototransistorRead = averagePhototransistor();
     
     if (averagePhototransistorRead < 100){ //Should implement a count average here of some sort to prevent false readings. 
         return FIND_CLOSEST_FIRE;
     }
+    forward();
+    delay(250);
+    stop();
 
     int _brightnessCount = 0;
     int new_servoAngle = 80;
