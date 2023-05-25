@@ -40,7 +40,7 @@ enum STATE {
 #define phototransistor_left_1 A15
 #define phototransistor_left_2 A14
 #define phototransistor_right_1 A12
-#define phototransistor_right_2 A13
+#define phototransistor_right_2 A11
 
 SoftwareSerial BluetoothSerial(BLUETOOTH_RX, BLUETOOTH_TX);
 Servo myservo;  // create servo object to control a servo
@@ -146,7 +146,7 @@ STATE initialising() {
     SerialCom->println("Enabling Motors...");
     enable_motors();
     SerialCom->println("RUNNING STATE...");
-    return FIND_CLOSEST_FIRE;
+    return TRAVEL_TO_FIRE;
 }
 
 STATE find_closest_fire() {
@@ -217,7 +217,6 @@ STATE travel_to_fire() {
             }
 
             new_servoAngle = old_servoAngle + findLightDirection();
-            myservo.write(new_servoAngle);
         }
 
         if(_noFireCheck > 10){
@@ -225,14 +224,17 @@ STATE travel_to_fire() {
             return FIND_CLOSEST_FIRE;
         }
 
-        if (averagePhototransistorRead > 40){
-          if (new_servoAngle > 170 || new_servoAngle < 10){
+
+        if (new_servoAngle > 160 || new_servoAngle < 20){
               stop();
-              reverse();
-              delay(400);
+              if (averagePhototransistorRead > 40){
+                 reverse();
+                 delay(400);
+                 stop();
+              }
               return FIND_CLOSEST_FIRE;
-          }
         }
+        myservo.write(new_servoAngle);
         
         // Calculate errors // 
         //////////////////////////////////////
@@ -249,13 +251,13 @@ STATE travel_to_fire() {
         }
 
         y_error = 0;
-        if (y_left < 4){
+        if (y_left < 7){
             y_error = -50;
         }
-        if (y_right < 4){
+        if (y_right < 7){
             y_error = 50;
         }
-        if (y_right < 4 && y_left < 4){
+        if (y_right < 7 && y_left < 7){
           y_error = 0;
         }
     
