@@ -162,9 +162,9 @@ STATE find_closest_fire() {
         cw();
     }
 
-    while (_brightnessCount < 250){
+    while (_brightnessCount < 150){
         averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > 5){_brightnessCount++;}
+        if (averagePhototransistorRead > 3){_brightnessCount++;}
     }
     stop();
 
@@ -225,11 +225,13 @@ STATE travel_to_fire() {
             return FIND_CLOSEST_FIRE;
         }
 
-        if (new_servoAngle > 170 || new_servoAngle < 10){
-            stop();
-            reverse();
-            delay(400);
-            return FIND_CLOSEST_FIRE;
+        if (averagePhototransistorRead > 40){
+          if (new_servoAngle > 170 || new_servoAngle < 10){
+              stop();
+              reverse();
+              delay(400);
+              return FIND_CLOSEST_FIRE;
+          }
         }
         
         // Calculate errors // 
