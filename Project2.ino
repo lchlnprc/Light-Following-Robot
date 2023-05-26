@@ -115,7 +115,7 @@ void setup(void) {
 //////MAIN LOOP
 
 void loop(void)  
-{
+{ 
     static STATE machine_state = INITIALISING;
     //Finite-state machine Code
     switch (machine_state) {
@@ -164,7 +164,7 @@ STATE find_closest_fire() {
 
     while (_brightnessCount < 150){
         averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > 3){_brightnessCount++;}
+        if (averagePhototransistorRead > 2){_brightnessCount++;}
     }
     stop();
 
@@ -251,13 +251,13 @@ STATE travel_to_fire() {
         }
 
         y_error = 0;
-        if (y_left < 8){
+        if (y_left < 6){
             y_error = -30;
         }
-        if (y_right < 8){
+        if (y_right < 6){
             y_error = 30;
         }
-        if (y_right < 8 && y_left < 8){
+        if (y_right < 7 && y_left < 7){
           y_error = 0;
         }
     
@@ -271,27 +271,35 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (averagePhototransistorRead < 100){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
-            if (front_left < 8 && y_left < 8){
+        if (averagePhototransistorRead < 190){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+            if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
                 stop();
                 return FIND_CLOSEST_FIRE;
             }
-            if (front_right < 8 && y_right < 8){
+            if (front_right < 8 && y_right < 6){
                 reverse();
                 delay(1000);
                 stop();
                 return FIND_CLOSEST_FIRE;
             }
-            if(x_ultrasonic < 8 || front_left < 8){
+            if(x_ultrasonic < 8 || front_left < 8 && y_right > 10){
                 x_error = 0;
                 y_error = -100;
             }
-            else if(front_right < 8){
+            else if(x_ultrasonic < 8 || front_left < 8 && y_right < 10){
                 x_error = 0;
                 y_error = 100;
-            }      
+            }
+            else if(front_right < 8 && y_left > 10){
+                x_error = 0;
+                y_error = 100;
+            }    
+            else if(front_right < 8 && y_left < 10){
+                x_error = 0;
+                y_error = -100;
+            }        
         }
     
         if (abs(integral_x_error) < 50){
@@ -345,9 +353,10 @@ STATE travel_to_fire() {
         //Exit conditions
         bool xExit = false; 
     
-        if (averagePhototransistorRead > 130){
+        if (averagePhototransistorRead > 190){
             if (abs(x_error)<2 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
+              digitalWrite(fanPin, HIGH);
             }
         }
     
@@ -361,6 +370,7 @@ STATE travel_to_fire() {
         }
         if (!xExit){
             count = 0;
+            digitalWrite(fanPin, LOW);
         }
         delay(100);
 
@@ -370,14 +380,15 @@ STATE travel_to_fire() {
 }
 
 STATE fight_fire() {
-    
+    digitalWrite(fanPin, HIGH);
     averagePhototransistorRead = averagePhototransistor();
     
     if (averagePhototransistorRead < 100){ //Should implement a count average here of some sort to prevent false readings. 
+        digitalWrite(fanPin, LOW);
         return FIND_CLOSEST_FIRE;
     }
     forward();
-    delay(100);
+    delay(75);
     stop();
 
     int _brightnessCount = 0;
@@ -393,18 +404,19 @@ STATE fight_fire() {
             delay(10);
     }
 
-    digitalWrite(fanPin, HIGH);  // turn on the fan 
-
     while(averagePhototransistorRead > 100){
         averagePhototransistorRead = averagePhototransistor();
     }
     delay(500);
     //Light should now be out
-    digitalWrite(fanPin, LOW);  // turn on the fan
+    digitalWrite(fanPin, LOW);  // turn off the fan
 
     firesExtinguished++;
 
     if (firesExtinguished < 2){
+        reverse();
+        delay(500);
+        stop();
         return FIND_CLOSEST_FIRE;
     }
     else {
