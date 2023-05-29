@@ -1,11 +1,7 @@
-/* Project 2 Group 20 */
-
-/////////////////////////////////////////////////////////////////////////////////////////////////
-
 #include <Wire.h>
 #include <Servo.h>           //Need for Servo pulse output
 #include <SoftwareSerial.h>  //Need for Wireless
-#include <TimerOne.h>
+
 
 //State machine       <------ will need to add a bunch more states to this I think
 enum STATE {
@@ -51,6 +47,7 @@ int sensorValue = 0;            // read out value of sensor
 int averagePhototransistorRead = 0;            //Defining the Global Ultrasonic Reading
 int maxPhototransistorRead = 0;                 //Definining Global Max Ultrasonic
 int firesExtinguished = 0;
+int minimumLight = 5;
 byte serialRead = 0;  // for serial print control
 //Default motor control pins
 const byte left_front = 50;
@@ -116,6 +113,8 @@ void setup(void) {
 
 void loop(void)  
 { 
+  //findLightDirection();
+  
     static STATE machine_state = INITIALISING;
     //Finite-state machine Code
     switch (machine_state) {
@@ -150,7 +149,7 @@ STATE initialising() {
 }
 
 STATE find_closest_fire() {
-    myservo.write(83);
+    myservo.write(81);
     averagePhototransistorRead = 0;  // Reset the global phototransistor reading
     maxPhototransistorRead = 0; // Reset the global phototransistor maximum
     int _brightnessCount = 0;
@@ -164,7 +163,7 @@ STATE find_closest_fire() {
 
     while (_brightnessCount < 150){
         averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > 2){_brightnessCount++;}
+        if (averagePhototransistorRead > minimumLight){_brightnessCount++;}
     }
     stop();
 
@@ -175,7 +174,7 @@ STATE travel_to_fire() {
     stop();
     averagePhototransistorRead = 0;  // Reset the global phototransistor reading
     maxPhototransistorRead = 0; // Reset the global phototransistor maximum
-    myservo.write(83);
+    myservo.write(81);
 
     float currentAngleMove=0;     
     float x_error = 0, angle_error = 0, y_error = 0;
@@ -194,6 +193,7 @@ STATE travel_to_fire() {
     int _noFireCheck = 0;
     int _fireCheck = 0;
     int count = 0;
+    int _servoWrite = 80;
        
     while (true) {
         x_ultrasonic = ultrasonic();
@@ -212,7 +212,7 @@ STATE travel_to_fire() {
         else{
             _fireCheck++;
 
-            if (_noFireCheck != 0 && _fireCheck > 10){
+            if (_noFireCheck != 0 && _fireCheck > 7){
                 _noFireCheck = 0;
             }
 
@@ -234,7 +234,9 @@ STATE travel_to_fire() {
               }
               return FIND_CLOSEST_FIRE;
         }
-        myservo.write(new_servoAngle);
+        _servoWrite = (new_servoAngle > 100) ? 100 : new_servoAngle;
+        _servoWrite = (new_servoAngle < 60) ? 60 : new_servoAngle;        
+        myservo.write(_servoWrite);
         
         // Calculate errors // 
         //////////////////////////////////////
@@ -244,10 +246,6 @@ STATE travel_to_fire() {
         }
         if (x_error < -200){
             x_error = -200;
-        }
-
-        if (averagePhototransistorRead > 130){
-            x_error = x_error * 0.5; //<-------------------------- IDK IF THIS WILL WORK IT MADE IT KINDA JANKY BUT HAVENT TESTED YET
         }
 
         y_error = 0;
@@ -271,7 +269,7 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (averagePhototransistorRead < 190){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+        if (averagePhototransistorRead < 600){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
             if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
@@ -353,7 +351,7 @@ STATE travel_to_fire() {
         //Exit conditions
         bool xExit = false; 
     
-        if (averagePhototransistorRead > 190){
+        if (averagePhototransistorRead > 700){
             if (abs(x_error)<2 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
               digitalWrite(fanPin, HIGH);
@@ -383,7 +381,7 @@ STATE fight_fire() {
     digitalWrite(fanPin, HIGH);
     averagePhototransistorRead = averagePhototransistor();
     
-    if (averagePhototransistorRead < 100){ //Should implement a count average here of some sort to prevent false readings. 
+    if (averagePhototransistorRead < 400){ //Should implement a count average here of some sort to prevent false readings. 
         digitalWrite(fanPin, LOW);
         return FIND_CLOSEST_FIRE;
     }
@@ -404,7 +402,7 @@ STATE fight_fire() {
             delay(10);
     }
 
-    while(averagePhototransistorRead > 100){
+    while(averagePhototransistorRead > 400){
         averagePhototransistorRead = averagePhototransistor();
     }
     delay(500);
@@ -470,7 +468,8 @@ int findLightDirection() {
 
     int leftBrightness = totalLeftBrightness / numReadings;
     int rightBrightness = totalRightBrightness / numReadings;
-
+    Serial.println(leftBrightness);
+Serial.println(rightBrightness);
     int gain_max = 10;
     if (leftBrightness > 100 || rightBrightness > 100){
         gain_max = 5;
