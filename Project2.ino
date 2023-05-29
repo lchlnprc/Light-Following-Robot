@@ -113,8 +113,6 @@ void setup(void) {
 
 void loop(void)  
 { 
-  //findLightDirection();
-  
     static STATE machine_state = INITIALISING;
     //Finite-state machine Code
     switch (machine_state) {
@@ -194,6 +192,7 @@ STATE travel_to_fire() {
     int _fireCheck = 0;
     int count = 0;
     int _servoWrite = 80;
+    int _closePhototransistor;
        
     while (true) {
         x_ultrasonic = ultrasonic();
@@ -202,6 +201,7 @@ STATE travel_to_fire() {
         front_left = read_IR(IR_Front_Left);
         front_right = read_IR(IR_Front_Right);
         averagePhototransistorRead = averagePhototransistor();
+        _closePhototransistor = closePhototransistor();
 
         if (averagePhototransistorRead < 10){
             _noFireCheck++;
@@ -234,8 +234,12 @@ STATE travel_to_fire() {
               }
               return FIND_CLOSEST_FIRE;
         }
-        _servoWrite = (new_servoAngle > 100) ? 100 : new_servoAngle;
-        _servoWrite = (new_servoAngle < 60) ? 60 : new_servoAngle;        
+        if (new_servoAngle > 90){
+          _servoWrite = 90;
+        }
+        else if (new_servoAngle < 70){
+          _servoWrite = 70;
+        }        
         myservo.write(_servoWrite);
         
         // Calculate errors // 
@@ -269,7 +273,7 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (averagePhototransistorRead < 600){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+        if (_closePhototransistor < 500){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
             if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
@@ -299,7 +303,7 @@ STATE travel_to_fire() {
                 y_error = -100;
             }        
         }
-    
+
         if (abs(integral_x_error) < 50){
             integral_x_error += x_error;
         }
@@ -351,7 +355,7 @@ STATE travel_to_fire() {
         //Exit conditions
         bool xExit = false; 
     
-        if (averagePhototransistorRead > 700){
+        if (_closePhototransistor > 700){
             if (abs(x_error)<2 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
               digitalWrite(fanPin, HIGH);
@@ -468,8 +472,6 @@ int findLightDirection() {
 
     int leftBrightness = totalLeftBrightness / numReadings;
     int rightBrightness = totalRightBrightness / numReadings;
-    Serial.println(leftBrightness);
-Serial.println(rightBrightness);
     int gain_max = 10;
     if (leftBrightness > 100 || rightBrightness > 100){
         gain_max = 5;
@@ -547,6 +549,10 @@ float phototransistor(uint8_t Sensor){
 
 float averagePhototransistor(){
     return (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_left_2) + phototransistor(phototransistor_right_1) + phototransistor(phototransistor_right_2)) / 4;
+}
+
+float closePhototransistor(){
+    return (phototransistor(phototransistor_left_1) + phototransistor(phototransistor_right_1)) / 2;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
