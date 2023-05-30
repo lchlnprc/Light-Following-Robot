@@ -161,7 +161,7 @@ STATE find_closest_fire() {
 
     while (_brightnessCount < 150){
         averagePhototransistorRead = averagePhototransistor();
-        if (averagePhototransistorRead > minimumLight){_brightnessCount++;}
+        if (averagePhototransistorRead > 10){_brightnessCount++;}
     }
     stop();
 
@@ -192,7 +192,9 @@ STATE travel_to_fire() {
     int _fireCheck = 0;
     int count = 0;
     int _servoWrite = 80;
-    int _closePhototransistor;
+    int _closePhototransistor = 0;
+
+    bool xExit = false;
        
     while (true) {
         x_ultrasonic = ultrasonic();
@@ -227,19 +229,21 @@ STATE travel_to_fire() {
 
         if (new_servoAngle > 160 || new_servoAngle < 20){
               stop();
-              if (averagePhototransistorRead > 40){
+              if (averagePhototransistorRead > 100){
                  reverse();
                  delay(400);
                  stop();
               }
               return FIND_CLOSEST_FIRE;
         }
+
         if (new_servoAngle > 90){
           _servoWrite = 90;
         }
         else if (new_servoAngle < 70){
           _servoWrite = 70;
-        }        
+        }   
+        else {_servoWrite = new_servoAngle;}     
         myservo.write(_servoWrite);
         
         // Calculate errors // 
@@ -352,15 +356,15 @@ STATE travel_to_fire() {
         previous_angle_error = angle_error;
         old_servoAngle = new_servoAngle;
 
-        //Exit conditions
-        bool xExit = false; 
+        //Exit conditions 
     
         if (_closePhototransistor > 700){
-            if (abs(x_error)<2 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
+            if (abs(x_error)<3 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
               digitalWrite(fanPin, HIGH);
             }
         }
+        else {xExit = false;}
     
         if (xExit){
           count++;
@@ -473,7 +477,7 @@ int findLightDirection() {
     int leftBrightness = totalLeftBrightness / numReadings;
     int rightBrightness = totalRightBrightness / numReadings;
     int gain_max = 10;
-    if (leftBrightness > 100 || rightBrightness > 100){
+    if (leftBrightness > 300 || rightBrightness > 300){
         gain_max = 5;
     }
 
