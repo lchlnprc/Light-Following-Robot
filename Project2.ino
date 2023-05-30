@@ -255,16 +255,27 @@ STATE travel_to_fire() {
         if (x_error < -200){
             x_error = -200;
         }
+        if (averagePhototransistorRead > 300){
+            x_error = x_error * 0.5; //<-------------------------- IDK IF THIS WILL WORK IT MADE IT KINDA JANKY BUT HAVENT TESTED YET
+        }
 
         y_error = 0;
-        if (y_left < 7){
+        if (y_left < 9){
             y_error = -40;
         }
-        if (y_right < 7){
+        if (y_right < 9){
             y_error = 40;
         }
-        if (y_right < 8 && y_left < 8){
-          y_error = 0;
+        if (y_right < 9 && y_left < 9){
+            if (y_left < 5 && y_right > 5){
+                y_error = -40;
+            }
+            else if (y_right < 5 && y_left > 5){
+                y_error = 40;
+            }
+            else{
+                y_error = 0;
+            }
         }
     
         angle_error = -(new_servoAngle - old_servoAngle);
@@ -277,7 +288,7 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (_closePhototransistor < 675){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+        if (_closePhototransistor < 700){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
             if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
@@ -290,19 +301,19 @@ STATE travel_to_fire() {
                 stop();
                 return FIND_CLOSEST_FIRE;
             }
-            if(x_ultrasonic < 8 || front_left < 8 && y_right > 10){
+            if(x_ultrasonic < 8 || front_left < 8 && y_right > 20){
                 x_error = 0;
                 y_error = -100;
             }
-            else if(x_ultrasonic < 8 || front_left < 8 && y_right < 10){
+            else if(x_ultrasonic < 8 || front_left < 8 && y_right < 20){
                 x_error = 0;
                 y_error = 100;
             }
-            else if(front_right < 8 && y_left > 15){
+            else if(front_right < 8 && y_left > 20){
                 x_error = 0;
                 y_error = 100;
             }    
-            else if(front_right < 8 && y_left < 15){
+            else if(front_right < 8 && y_left < 20){
                 x_error = 0;
                 y_error = -100;
             }        
@@ -329,8 +340,8 @@ STATE travel_to_fire() {
         y_velocity = y_k_p * y_error + y_k_i * integral_y_error + y_k_d * derivative_y_error;
         angular_velocity = angle_k_p * angle_error + angle_k_i * integral_angle_error + angle_k_d * derivative_angle_error;
     
-        if (x_velocity > 600){ x_velocity = 600;}
-        if (x_velocity < -600){ x_velocity = -600;}
+        if (x_velocity > 500){ x_velocity = 500;}
+        if (x_velocity < -500){ x_velocity = -500;}
 
         if (y_velocity > 600){ y_velocity = 600;}
         if (y_velocity < -600){ y_velocity = -600;}
@@ -388,8 +399,9 @@ STATE travel_to_fire() {
 STATE fight_fire() {
     digitalWrite(fanPin, HIGH);
     averagePhototransistorRead = averagePhototransistor();
+    int _closePhototransistor = closePhototransistor();
     
-    if (averagePhototransistorRead < 400){ //Should implement a count average here of some sort to prevent false readings. 
+    if ((closePhototransistor()+closePhototransistor())/2 < 300){ //Should implement a count average here of some sort to prevent false readings. 
         digitalWrite(fanPin, LOW);
         return FIND_CLOSEST_FIRE;
     }
@@ -397,23 +409,22 @@ STATE fight_fire() {
     delay(75);
     stop();
 
-    int _brightnessCount = 0;
     int new_servoAngle = 80;
     int old_servoAngle = myservo.read();
-    while (_brightnessCount < 80){
+    while (_closePhototransistor > 500){
             new_servoAngle = old_servoAngle + findLightDirection();
             new_servoAngle = (new_servoAngle > 120) ? 90 : new_servoAngle;
             new_servoAngle = (new_servoAngle < 50) ? 90 : new_servoAngle;
             myservo.write(new_servoAngle);
             old_servoAngle = new_servoAngle;
-            _brightnessCount++;
+            _closePhototransistor = closePhototransistor();
             delay(10);
     }
-
-    while(averagePhototransistorRead > 400){
-        averagePhototransistorRead = averagePhototransistor();
+    if ((closePhototransistor()+closePhototransistor()) /2 > 450){
+        return FIGHT_FIRE;  //<---Backup incase while loop exits incorrectly
     }
-    delay(500);
+
+    delay(100);
     //Light should now be out
     digitalWrite(fanPin, LOW);  // turn off the fan
 
@@ -453,7 +464,7 @@ STATE stopped() {
             counter_lipo_voltage_ok = 0;
             enable_motors();
             SerialCom->println("Lipo OK returning to RUN STATE");
-            return FIND_CLOSEST_FIRE;
+            return STOPPED;
         }
     } else {
         counter_lipo_voltage_ok = 0;
