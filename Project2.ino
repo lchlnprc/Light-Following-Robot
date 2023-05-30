@@ -257,13 +257,13 @@ STATE travel_to_fire() {
         }
 
         y_error = 0;
-        if (y_left < 6){
-            y_error = -30;
+        if (y_left < 7){
+            y_error = -40;
         }
-        if (y_right < 6){
-            y_error = 30;
+        if (y_right < 7){
+            y_error = 40;
         }
-        if (y_right < 7 && y_left < 7){
+        if (y_right < 8 && y_left < 8){
           y_error = 0;
         }
     
@@ -277,7 +277,7 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (_closePhototransistor < 500){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+        if (_closePhototransistor < 675){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
             if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
@@ -298,11 +298,11 @@ STATE travel_to_fire() {
                 x_error = 0;
                 y_error = 100;
             }
-            else if(front_right < 8 && y_left > 10){
+            else if(front_right < 8 && y_left > 15){
                 x_error = 0;
                 y_error = 100;
             }    
-            else if(front_right < 8 && y_left < 10){
+            else if(front_right < 8 && y_left < 15){
                 x_error = 0;
                 y_error = -100;
             }        
