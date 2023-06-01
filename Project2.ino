@@ -255,23 +255,20 @@ STATE travel_to_fire() {
         if (x_error < -200){
             x_error = -200;
         }
-        if (averagePhototransistorRead > 300){
-            x_error = x_error * 0.5; //<-------------------------- IDK IF THIS WILL WORK IT MADE IT KINDA JANKY BUT HAVENT TESTED YET
-        }
 
         y_error = 0;
-        if (y_left < 9){
-            y_error = -40;
+        if (y_left < 6){
+            y_error = -30;
         }
-        if (y_right < 9){
+        if (y_right < 6){
             y_error = 40;
         }
-        if (y_right < 9 && y_left < 9){
+        if (y_right < 8 && y_left < 8){
             if (y_left < 5 && y_right > 5){
-                y_error = -40;
+                y_error = -30;
             }
             else if (y_right < 5 && y_left > 5){
-                y_error = 40;
+                y_error = 30;
             }
             else{
                 y_error = 0;
@@ -288,7 +285,7 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (_closePhototransistor < 700){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+        if (_closePhototransistor < 630){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
             if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
@@ -301,22 +298,14 @@ STATE travel_to_fire() {
                 stop();
                 return FIND_CLOSEST_FIRE;
             }
-            if(x_ultrasonic < 8 || front_left < 8 && y_right > 20){
+            if(x_ultrasonic < 8 || front_left < 8 && y_right > 15){
                 x_error = 0;
                 y_error = -100;
             }
-            else if(x_ultrasonic < 8 || front_left < 8 && y_right < 20){
+            else if(front_right < 8){
                 x_error = 0;
                 y_error = 100;
-            }
-            else if(front_right < 8 && y_left > 20){
-                x_error = 0;
-                y_error = 100;
-            }    
-            else if(front_right < 8 && y_left < 20){
-                x_error = 0;
-                y_error = -100;
-            }        
+            }           
         }
 
         if (abs(integral_x_error) < 50){
@@ -369,7 +358,7 @@ STATE travel_to_fire() {
 
         //Exit conditions 
     
-        if (_closePhototransistor > 700){
+        if (_closePhototransistor > 660){
             if (abs(x_error)<3 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
               digitalWrite(fanPin, HIGH);
