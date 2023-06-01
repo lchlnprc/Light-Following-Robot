@@ -285,7 +285,7 @@ STATE travel_to_fire() {
 
         //Obstacle Avoidance via PID
         //////////////////////////////////////////////
-        if (_closePhototransistor < 630){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
+        if (_closePhototransistor < 550){ //VALUE TO BE TUNED THIS NEEDS TO BE ACCURATE
             if (front_left < 8 && y_left < 6){
                 reverse();
                 delay(1000);
@@ -298,11 +298,11 @@ STATE travel_to_fire() {
                 stop();
                 return FIND_CLOSEST_FIRE;
             }
-            if(x_ultrasonic < 8 || front_left < 8 && y_right > 15){
+            if(x_ultrasonic < 9 || front_left < 9){
                 x_error = 0;
                 y_error = -100;
             }
-            else if(front_right < 8){
+            else if(front_right < 9){
                 x_error = 0;
                 y_error = 100;
             }           
@@ -358,7 +358,7 @@ STATE travel_to_fire() {
 
         //Exit conditions 
     
-        if (_closePhototransistor > 660){
+        if (_closePhototransistor > 575){
             if (abs(x_error)<3 || read_IR(IR_Front_Right) < 5 || read_IR(IR_Front_Left) < 5){
               xExit = true;
               digitalWrite(fanPin, HIGH);
@@ -390,12 +390,12 @@ STATE fight_fire() {
     averagePhototransistorRead = averagePhototransistor();
     int _closePhototransistor = closePhototransistor();
     
-    if ((closePhototransistor()+closePhototransistor())/2 < 300){ //Should implement a count average here of some sort to prevent false readings. 
+    if ((closePhototransistor()+closePhototransistor())/2 < 200){ //Should implement a count average here of some sort to prevent false readings. 
         digitalWrite(fanPin, LOW);
         return FIND_CLOSEST_FIRE;
     }
     forward();
-    delay(75);
+    delay(35);
     stop();
 
     int new_servoAngle = 80;
@@ -409,7 +409,7 @@ STATE fight_fire() {
             _closePhototransistor = closePhototransistor();
             delay(10);
     }
-    if ((closePhototransistor()+closePhototransistor()) /2 > 450){
+    if ((closePhototransistor()+closePhototransistor()) /2 > 300){
         return FIGHT_FIRE;  //<---Backup incase while loop exits incorrectly
     }
 
