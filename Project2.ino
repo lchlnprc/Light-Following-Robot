@@ -186,7 +186,7 @@ STATE travel_to_fire() {
     float radius = 2.6, length = 8.5, width = 9.2;    // wheel specs
     float theta_dot_1 = 0, theta_dot_2 = 0, theta_dot_3 = 0, theta_dot_4 = 0;
     float x_ultrasonic = 0, y_left = 0, y_right = 0, front_left = 0, front_right = 0;
-    float old_servoAngle = 80, new_servoAngle = 0, servoAngle = 0, xDistanceDesired = 4; //<------we could replace this with looking for brightness instead of distance? IDK
+    float old_servoAngle = 80, new_servoAngle = 0, servoAngle = 0, xDistanceDesired = 5; //<------we could replace this with looking for brightness instead of distance? IDK
 
     int _noFireCheck = 0;
     int _fireCheck = 0;
@@ -394,9 +394,6 @@ STATE fight_fire() {
         digitalWrite(fanPin, LOW);
         return FIND_CLOSEST_FIRE;
     }
-    forward();
-    delay(35);
-    stop();
 
     int new_servoAngle = 80;
     int old_servoAngle = myservo.read();
